@@ -1,0 +1,133 @@
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #f5f7fb;
+}
+
+.app-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-sider {
+  position: fixed !important;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  height: 100vh !important;
+  overflow: hidden;
+  z-index: 100;
+}
+
+.app-sider-brand {
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+
+.app-main {
+  margin-left: 240px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 99;
+  flex-shrink: 0;
+  height: 64px;
+  line-height: 64px;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: #f5f7fb;
+}
+
+.logo-title {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.page-card {
+  margin-bottom: 16px;
+}
+
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.json-preview {
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  overflow: auto;
+  max-height: 360px;
+}
+
+.task-row {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.task-row:last-child {
+  border-bottom: none;
+}
+
+.ant-statistic-title {
+  font-size: 13px;
+}
+
+.merchant-delete-popconfirm {
+  max-width: 360px;
+}
+
+.merchant-delete-popconfirm .ant-popover-inner {
+  max-width: 360px;
+}
+
+.merchant-delete-popconfirm .ant-popconfirm-description {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.lang-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lang-switcher-icon {
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.lang-switcher-select {
+  width: 120px;
+}
+
+.merchant-table-actions .ant-btn-link {
+  padding-inline: 8px;
+}

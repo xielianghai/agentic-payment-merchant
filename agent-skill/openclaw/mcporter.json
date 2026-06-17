@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/steipete/mcporter/main/mcporter.schema.json",
+  "mcpServers": {
+    "ap2-merchant-adapter": {
+      "description": "Agentic Payment Merchant Adapter (UCP + AP2)",
+      "command": "python",
+      "args": ["../../adapter/mcp/server.py"],
+      "env": {
+        "ADAPTER_BASE_URL": "http://127.0.0.1:8200",
+        "MERCHANT_MGMT_API": "http://127.0.0.1:9100",
+        "HEG_FLIGHT_BACKEND_URL": "http://127.0.0.1:9000",
+        "TEMP_DB_DIR": "../../payment-stack/.temp-db"
+      }
+    }
+  },
+  "imports": []
+}

@@ -1,0 +1,134 @@
+"""Unified Merchant Payment Processor MCP — card initiate + x402 settle."""
+
+import asyncio
+import json
+import logging
+import os
+import sys
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
+
+import httpx
+from fastmcp import FastMCP
+from fastmcp.server.middleware.logging import LoggingMiddleware
+
+from path_setup import bootstrap_unified  # noqa: E402
+
+bootstrap_unified(__file__)
+from constants_unified import (  # noqa: E402
+  CP_PAYMENT_RECEIPT_URL,
+  SUPPORTED_PAYMENT_METHODS,
+)
+from role_logging import log_op, log_op_result, setup_role_logger  # noqa: E402
+
+from roles.merchant_payment_processor_mcp import server as card_mpp
+from roles.x402_psp_mcp import server as x402_psp
+
+mcp = FastMCP("Unified Merchant Payment Processor MCP Server")
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_LOG_DIR = Path(os.environ.get("LOGS_DIR", _SCRIPT_DIR.parent.parent / ".logs"))
+_LOG_FILE = _LOG_DIR / "merchant-payment-processor-unified-mcp.log"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_logger = setup_role_logger(
+    "mpp-unified-mcp",
+    log_file=_LOG_FILE,
+    level=logging.INFO,
+)
+
+mcp.add_middleware(
+    LoggingMiddleware(
+        logger=_logger,
+        include_payloads=True,
+        include_payload_length=True,
+        max_payload_length=8000,
+    )
+)
+
+
+def _normalize_payment_method(payment_method: str) -> str:
+  method = (payment_method or "").strip().lower()
+  if method not in SUPPORTED_PAYMENT_METHODS:
+    raise ValueError(f"unsupported payment_method: {payment_method}")
+  return method
+
+
+async def _send_payment_receipt_to_cp(receipt: str) -> None:
+  async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
+    try:
+      response = await client.post(
+          CP_PAYMENT_RECEIPT_URL,
+          json={"payment_receipt": receipt},
+      )
+      response.raise_for_status()
+      _logger.info("Sent payment receipt to unified CP at %s", CP_PAYMENT_RECEIPT_URL)
+    except httpx.HTTPStatusError as exc:
+      _logger.warning("Failed to send payment receipt: %s", exc.response.text)
+    except Exception as e:
+      _logger.warning("Error sending payment receipt: %s", e)
+
+
+async def _initiate_payment_card(
+    payment_token: str,
+    checkout_jwt_hash: str,
+    open_checkout_hash: str,
+) -> dict[str, Any]:
+  """Run card MPP logic but POST receipt to unified CP port."""
+  original_send = card_mpp._send_payment_receipt_to_credentials_provider
+
+  async def _redirect_send(receipt: str) -> None:
+    await _send_payment_receipt_to_cp(receipt)
+
+  card_mpp._send_payment_receipt_to_credentials_provider = _redirect_send
+  try:
+    return await card_mpp.initiate_payment(
+        payment_token,
+        checkout_jwt_hash,
+        open_checkout_hash,
+    )
+  finally:
+    card_mpp._send_payment_receipt_to_credentials_provider = original_send
+
+
+@mcp.tool()
+async def initiate_or_settle_payment(
+    payment_method: str,
+    payment_token: str,
+    checkout_jwt_hash: str = "",
+    open_checkout_hash: str = "",
+) -> Mapping[str, Any]:
+  """Card: initiate_payment. x402: settle_payment (payment_token is bundled JSON)."""
+  _logger.info("initiate_or_settle_payment: method=%s", payment_method)
+  try:
+    method = _normalize_payment_method(payment_method)
+  except ValueError as e:
+    return {"error": "unsupported_payment_method", "message": str(e)}
+
+  if method == "card":
+    if not checkout_jwt_hash or not open_checkout_hash:
+      result = {
+          "error": "missing_fields",
+          "message": "checkout_jwt_hash and open_checkout_hash required for card",
+      }
+      log_op_result(_logger, "mpp", "initiate_or_settle_payment", result)
+      return result
+    result = await _initiate_payment_card(
+        payment_token,
+        checkout_jwt_hash,
+        open_checkout_hash,
+    )
+    log_op_result(_logger, "mpp", "initiate_or_settle_payment", result, method=method)
+    return result
+
+  result = x402_psp.settle_payment(
+      payment_token,
+      checkout_jwt_hash or None,
+      open_checkout_hash or None,
+  )
+  log_op_result(_logger, "mpp", "initiate_or_settle_payment", result, method=method)
+  return result
+
+
+if __name__ == "__main__":
+  mcp.run()

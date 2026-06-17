@@ -1,0 +1,135 @@
+.flight-options-container {
+  max-width: min(85%, var(--chat-card-max-width, 480px));
+
+  .header-wrapper {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    .icon-wrapper {
+      width: 22px;
+      height: 22px;
+      border-radius: 8px;
+      background: rgba(96, 165, 250, 0.12);
+      border: 1px solid rgba(96, 165, 250, 0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .header-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .tool-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: #60a5fa;
+      letter-spacing: 0.02em;
+    }
+
+    .route-label {
+      font-family: 'Geist', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+      line-height: 1.35;
+    }
+  }
+
+  .subtitle {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+
+  .flight-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .info-text {
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    color: #64748b;
+    line-height: 1.5;
+  }
+}
+
+.flight-row-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #1e293b;
+  background: linear-gradient(180deg, #111827 0%, #0f1117 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  .flight-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .flight-no {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #f8fafc;
+    background: rgba(37, 99, 235, 0.18);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    border-radius: 8px;
+    padding: 6px 8px;
+    flex-shrink: 0;
+  }
+
+  .flight-meta {
+    min-width: 0;
+  }
+
+  .flight-when {
+    font-size: 13px;
+    color: #e2e8f0;
+    font-weight: 500;
+    line-height: 1.35;
+  }
+
+  .flight-cabin {
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: #94a3b8;
+  }
+
+  .flight-side {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .flight-price {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: #f8fafc;
+  }
+
+  .flight-seats {
+    margin-top: 4px;
+    font-size: 10.5px;
+    color: #64748b;
+
+    &.low {
+      color: #fbbf24;
+      font-weight: 600;
+    }
+  }
+}

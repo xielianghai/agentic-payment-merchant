@@ -1,0 +1,114 @@
+.otp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+
+.otp-modal-card {
+  position: relative;
+  background: #1e1e2e;
+  border: 1px solid #444;
+  border-radius: 12px;
+  padding: 1.75rem;
+  min-width: 320px;
+  max-width: 380px;
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.otp-modal-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  .otp-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .otp-modal-subtitle {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    line-height: 1.4;
+  }
+}
+
+.otp-modal-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+  font-size: 1.5rem;
+  letter-spacing: 0.5rem;
+  text-align: center;
+  background: #15151f;
+  border: 1px solid #3a3a4a;
+  border-radius: 8px;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    border-color: #60a5fa;
+  }
+
+  &.error {
+    border-color: #f87171;
+  }
+
+  &::placeholder {
+    color: #555;
+    letter-spacing: 0.5rem;
+  }
+}
+
+.otp-modal-error {
+  font-size: 0.8rem;
+  color: #f87171;
+  margin-top: -0.35rem;
+}
+
+.otp-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+
+  button {
+    flex: 1;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s ease, background 0.15s ease;
+  }
+
+  .otp-modal-cancel {
+    background: transparent;
+    border: 1px solid #3a3a4a;
+    color: #cbd5e1;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+  }
+
+  .otp-modal-confirm {
+    background: #2563eb;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: #1d4ed8;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+}

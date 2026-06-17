@@ -1,0 +1,27 @@
+{
+  "name": "ap2-agent-checkout",
+  "version": "1.0.0",
+  "description": "One-shot installer: ClawHub ap2-checkout skill, openclaw config, and local AP2 mock backend",
+  "type": "module",
+  "bin": {
+    "ap2-agent-checkout": "./bin/ap2-agent-checkout.js",
+    "ap2-agent-checkout-install": "./bin/install.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "templates",
+    "README.md"
+  ],
+  "keywords": [
+    "ap2",
+    "openclaw",
+    "agent",
+    "checkout",
+    "mcp"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

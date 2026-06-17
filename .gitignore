@@ -1,0 +1,11 @@
+.env
+.DS_Store
+**/.venv/
+**/node_modules/
+**/__pycache__/
+**/.temp-db/
+**/.logs/
+**/dist/
+*.pyc
+.pytest_cache/
+.mypy_cache/

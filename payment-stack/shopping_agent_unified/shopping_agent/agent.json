@@ -1,0 +1,28 @@
+{
+  "id": "shopping_agent_unified",
+  "name": "AP2 Unified Shopper",
+  "description": "HP + HNP delegated and immediate purchase with card or x402 payment rails",
+  "url": "http://localhost:8090/a2a/shopping_agent",
+  "version": "1.0.0",
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["text/plain", "application/json"],
+  "skills": [
+    {
+      "id": "unified_purchase",
+      "name": "Unified AP2 purchase",
+      "description": "Human Present immediate checkout or Human Not Present drop monitoring with runtime card/x402 selection.",
+      "inputModes": ["text/plain", "application/json"],
+      "outputModes": ["application/json"],
+      "examples": [
+        "When is the SuperShoe limited edition Gold sneaker drop? I need size 9 women's.",
+        "Buy the SuperShoe now with my card."
+      ],
+      "tags": ["llm", "ap2"]
+    }
+  ]
+}
