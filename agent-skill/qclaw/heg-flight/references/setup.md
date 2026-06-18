@@ -27,13 +27,13 @@ export MERCHANT_HOME="$HOME/AI-coding/payment/agentic-payment-merchant"
 
 Merchant catalog tools use **Adapter MCP** (`ap2-merchant-adapter`, stdio) — not port 8101.
 
-## Install skill into QClaw
+## Sync skill (openclaw + clawhub + QClaw)
 
 From the repository:
 
 ```bash
 cd "$MERCHANT_HOME/agent-skill"
-./install-qclaw-skill.sh
+./sync-heg-flight-skill.sh
 ```
 
 Target: `~/.qclaw/skills/heg-flight/`
@@ -43,7 +43,7 @@ Override paths:
 ```bash
 QCLAW_SKILL_DIR=~/.qclaw/skills/heg-flight \
 QCLAW_CONFIG=~/.qclaw/openclaw.json \
-./install-qclaw-skill.sh
+./sync-heg-flight-skill.sh
 ```
 
 ## MCPORTER_CONFIG

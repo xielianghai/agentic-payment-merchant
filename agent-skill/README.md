@@ -8,21 +8,34 @@
 
 | 目录 | 用途 |
 |------|------|
-| `qclaw/heg-flight/` | QClaw 安装源 |
-| `openclaw/` | OpenClaw 本地开发版 `heg-flight` skill |
-| `clawhub/heg-flight/` | ClawHub 发布包 |
+| `qclaw/heg-flight/` | **主源** — 改 skill 从这里改 |
+| `openclaw/` | OpenClaw 本地开发版（由 sync 脚本生成） |
+| `clawhub/heg-flight/` | ClawHub 发布包（由 sync 脚本生成） |
+| `scripts/generate-mcporter.py` | 唯一 mcporter 结构定义（相对/绝对路径） |
 
-## QClaw 安装（推荐）
+## 维护 skill（一条命令）
+
+改完 `qclaw/heg-flight/` 后：
 
 ```bash
 cd agent-skill
-chmod +x install-qclaw-skill.sh
-./install-qclaw-skill.sh
+chmod +x sync-heg-flight-skill.sh scripts/generate-mcporter.py
+./sync-heg-flight-skill.sh
 ```
 
-安装目标：`~/.qclaw/skills/heg-flight/`。
+默认会：
 
-脚本会复制技能文件、生成带绝对路径的 `mcporter.json`，并在 `~/.qclaw/openclaw.json` 中启用 `heg-flight` 与 `mcporter`。
+1. 同步 `openclaw/`、`clawhub/heg-flight/`（scripts、SKILL.md、相对路径 `mcporter.json`）
+2. 安装/刷新 QClaw：`~/.qclaw/skills/heg-flight/` + 绝对路径 `mcporter.json` + 更新 `~/.qclaw/openclaw.json`
+
+可选：
+
+```bash
+./sync-heg-flight-skill.sh --no-qclaw    # 只同步仓库内 openclaw/clawhub
+./sync-heg-flight-skill.sh --qclaw-only  # 只刷新 QClaw 安装
+```
+
+不会覆盖：`openclaw/README.md`、`clawhub/heg-flight/PUBLISH.md`、各目录 `references/setup.md`。
 
 ## 配置
 
@@ -39,7 +52,7 @@ export MCPORTER_CONFIG=$HOME/.qclaw/skills/heg-flight/mcporter.json
    ~/.qclaw/skills/heg-flight/scripts/start-backend.sh   # buyer MCP :8100-8103
    ```
 
-2. 在 QClaw 中启用 `mcporter` 与 `heg-flight`（`install-qclaw-skill.sh` 会自动配置）
+2. 在 QClaw 中启用 `mcporter` 与 `heg-flight`（`sync-heg-flight-skill.sh` 会自动配置）
 
 ## OpenClaw 本地使用
 

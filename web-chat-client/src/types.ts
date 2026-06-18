@@ -335,12 +335,24 @@ export interface ImmediateCheckoutApprovedPayload {
   };
 }
 
+export interface X402WalletSignedPayload {
+  type: 'x402_wallet_signed';
+  ref: string;
+  wallet_address?: string;
+  tx_hash?: string;
+  ap2_config?: {
+    presence_mode: 'hp' | 'hnp';
+    payment_method: 'x402';
+    merchant?: 'shoe' | 'flight';
+  };
+}
+
 /**
  * The unified set of outgoing data payloads sent from client to agent.
  */
 export type OutgoingDataPayload =
     |ItemSelectedPayload|CheckProductNowPayload|MandateApprovedPayload|
-    ImmediateCheckoutApprovedPayload;
+    ImmediateCheckoutApprovedPayload|X402WalletSignedPayload;
 
 // ============================================================================
 // UI / PRESENTATION MODELS

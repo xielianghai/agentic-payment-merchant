@@ -4,7 +4,9 @@
     "ap2-merchant-adapter": {
       "description": "Agentic Payment Merchant Adapter (UCP + AP2 flight catalog)",
       "command": "python3",
-      "args": ["../../adapter/mcp/server.py"],
+      "args": [
+        "../../adapter/mcp/server.py"
+      ],
       "env": {
         "ADAPTER_BASE_URL": "http://127.0.0.1:8200",
         "MERCHANT_MGMT_API": "http://127.0.0.1:9100",

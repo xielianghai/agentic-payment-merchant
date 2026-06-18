@@ -78,9 +78,9 @@ cd payment-stack && ./start.sh
 ## OpenClaw / QClaw heg-flight 技能
 
 ```bash
-# QClaw 安装；OpenClaw 本地使用见 agent-skill/README.md
+# 同步 openclaw / clawhub / QClaw；OpenClaw 本地使用见 agent-skill/README.md
 cd agent-skill
-./install-qclaw-skill.sh
+./sync-heg-flight-skill.sh
 ```
 
 ## 停止

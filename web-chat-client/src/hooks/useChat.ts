@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import {A2AClient} from '../a2aClient';
 import {isAutoMode, isFixedMode, type Ap2ModeConfig} from '../components/ModePicker';
-import {AGENT_URL, inferMerchantFromText, isFlightMerchant, MERCHANT_TRIGGER_URL, type MerchantKey} from '../config';
+import {AGENT_URL, inferMerchantFromText, isFlightMerchant, MERCHANT_TRIGGER_URL, TS_BASE_URL, type MerchantKey} from '../config';
 import type {ChatMessage, ImmediateCheckoutRequest, InventoryMatch, InventoryOptionsArtifact, MandateApprovalData, MandateChainsFetched, MandateEntry, MandateRequest, MandatesSigned, MonitoringStatus, OutgoingDataPayload, Part, ToolCallArtifact} from '../types';
 import {isFunctionResponsePart, isToolCallArtifact} from '../types';
 import {deriveMandateEntries} from '../utils/mandateEntries';
@@ -23,6 +23,16 @@ import {
 import {convertToStrictPart, extractErrorFromText, extractImmediateCheckoutFromText, extractInventoryOptionsFromText, extractMandateFromText, extractMonitoringFromText, extractMonitoringJsonFromText, extractProductPreviewUnavailableFromText, extractPurchaseCompleteFromText, parseInvocationParts, parseMainArtifactData, parseToolAndInventoryArtifacts} from '../utils/parsing';
 
 const a2aClient = new A2AClient(AGENT_URL);
+const X402_WALLET_REF_RE = /\/ts\/x402\/sign\?ref=([A-Za-z0-9_-]+)/g;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractX402WalletRefs(text?: string): string[] {
+  if (!text) return [];
+  return [...text.matchAll(X402_WALLET_REF_RE)].map((m) => m[1]);
+}
 
 function withMerchantPayload(
     text: string|OutgoingDataPayload,
@@ -170,6 +180,8 @@ export function useChat(
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const configSentRef = useRef(false);
+  const x402WalletPollRefs = useRef(new Set<string>());
+  const x402WalletNotifiedRefs = useRef(new Set<string>());
 
   const onMerchantSelectedRef = useRef(onMerchantSelected);
   useEffect(() => {
@@ -751,6 +763,89 @@ export function useChat(
         }
       },
       [addMessage, ap2Config, fetchMandate, merchantKey]);
+
+  useEffect(() => {
+    if (hasPurchaseComplete) return;
+    const refs = messages.flatMap((m) => extractX402WalletRefs(m.text));
+    const base = TS_BASE_URL.replace(/\/$/, '');
+
+    for (const ref of refs) {
+      if (
+          x402WalletPollRefs.current.has(ref) ||
+          x402WalletNotifiedRefs.current.has(ref)) {
+        continue;
+      }
+      x402WalletPollRefs.current.add(ref);
+      devLog('WebClient', 'x402 wallet poll start', {ref});
+
+      void (async () => {
+        const deadline = Date.now() + 300_000;
+        while (Date.now() < deadline && !sessionDoneRef.current) {
+          await sleep(1500);
+          let statusData: {
+            status?: string;
+            wallet_address?: string;
+            tx_hash?: string;
+            message?: string;
+          };
+          try {
+            const resp = await fetch(
+                `${base}/ts/x402/status?ref=${encodeURIComponent(ref)}`,
+            );
+            statusData = await resp.json();
+          } catch (err) {
+            devWarn('WebClient', 'x402 wallet poll failed', {
+              ref,
+              error: String(err),
+            });
+            continue;
+          }
+
+          const status = statusData.status ?? '';
+          if (status === 'signed') {
+            x402WalletNotifiedRefs.current.add(ref);
+            devLog('WebClient', 'x402 wallet signed', {ref});
+            addMessage({
+              role: 'user_action',
+              userActionLabel: 'MetaMask signed',
+              userActionSublabel: 'x402 wallet signature recorded',
+            });
+
+            while (loadingRef.current && Date.now() < deadline) {
+              await sleep(500);
+            }
+            await sendToAgent(
+                {
+                  type: 'x402_wallet_signed',
+                  ref,
+                  wallet_address: statusData.wallet_address,
+                  tx_hash: statusData.tx_hash,
+                  ap2_config: {
+                    presence_mode: 'hp',
+                    payment_method: 'x402',
+                    merchant: merchantKey ?? undefined,
+                  },
+                },
+                pendingTaskId,
+            );
+            return;
+          }
+          if (status === 'expired' || status === 'not_found') {
+            devWarn('WebClient', 'x402 wallet session ended', {
+              ref,
+              status,
+              message: statusData.message,
+            });
+            return;
+          }
+        }
+        devWarn('WebClient', 'x402 wallet poll timeout', {ref});
+      })();
+    }
+  }, [
+    addMessage, hasPurchaseComplete, merchantKey, messages, pendingTaskId,
+    sendToAgent,
+  ]);
 
   // Trigger-state polling while HNP monitoring (fast) or HP awaiting drop (slow)
   useEffect(() => {

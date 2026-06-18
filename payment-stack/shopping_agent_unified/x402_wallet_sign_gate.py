@@ -7,6 +7,8 @@ import logging
 import os
 import secrets
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +63,94 @@ def _canonical_session_id(session_id: str) -> str:
   if sid.lower().startswith("feishu:") or sid.startswith("ou_"):
     return sid
   return f"{sid}@im.wechat"
+
+
+def _openclaw_session_key(session_id: str) -> str | None:
+  sid = _canonical_session_id(session_id)
+  if not sid:
+    return None
+  lower = sid.lower()
+  if "@im.wechat" in lower:
+    return f"agent:main:openclaw-weixin:direct:{lower}"
+  if lower.startswith("feishu:") or "@feishu" in lower:
+    peer = sid.split(":", 1)[-1].strip().lower()
+    if peer:
+      return f"agent:main:feishu:direct:{peer}"
+  return None
+
+
+def _resolve_openclaw_hook_token() -> str:
+  token = os.environ.get("AP2_OPENCLAW_HOOK_TOKEN", "").strip()
+  if token:
+    return token
+  cfg_path = Path.home() / ".openclaw" / "openclaw.json"
+  if not cfg_path.is_file():
+    return ""
+  try:
+    data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    hooks = data.get("hooks") or {}
+    if isinstance(hooks, dict):
+      return str(hooks.get("token") or "").strip()
+  except (OSError, json.JSONDecodeError, TypeError):
+    pass
+  return ""
+
+
+def _wake_openclaw_agent_after_x402_signed(session_id: str, ref: str) -> bool:
+  if os.environ.get("AP2_OPENCLAW_HOOK_ENABLED", "1").strip().lower() in (
+      "0",
+      "false",
+      "no",
+  ):
+    return False
+  hook_url = os.environ.get(
+      "AP2_OPENCLAW_HOOK_URL",
+      "http://127.0.0.1:18789/hooks/agent",
+  ).strip()
+  hook_token = _resolve_openclaw_hook_token()
+  if not hook_url or not hook_token:
+    _log.info("[x402-wallet] skip openclaw wake (hook url/token not configured)")
+    return False
+  canonical_sid = _canonical_session_id(session_id)
+  session_key = _openclaw_session_key(canonical_sid)
+  if not session_key:
+    _log.info("[x402-wallet] skip openclaw wake (no sessionKey for %r)", session_id)
+    return False
+  message = (
+      f"[AP2] x402 MetaMask wallet signed (ref={ref}). Continue HP checkout on "
+      f"session_id={canonical_sid}. Call wait_for_x402_wallet_signed with this "
+      f"ref, then ap2-cp.issue_payment_credential, then "
+      f"ap2-merchant.complete_checkout. Do NOT create a new Trusted Surface, "
+      f"wallet-sign session, cart, or checkout."
+  )
+  payload: dict[str, Any] = {
+      "message": message,
+      "sessionKey": session_key,
+      "channel": "openclaw-weixin" if "@im.wechat" in canonical_sid.lower() else "last",
+      "wakeMode": "now",
+      "deliver": True,
+      "name": "AP2 x402 Wallet",
+  }
+  if "@im.wechat" in canonical_sid.lower():
+    payload["to"] = canonical_sid
+  req = urllib.request.Request(
+      hook_url,
+      data=json.dumps(payload).encode("utf-8"),
+      headers={
+          "Content-Type": "application/json",
+          "Authorization": f"Bearer {hook_token}",
+      },
+      method="POST",
+  )
+  try:
+    with urllib.request.urlopen(req, timeout=10) as resp:
+      _log.info("[x402-wallet] openclaw wake OK ref=%s status=%s", ref, resp.status)
+      return True
+  except urllib.error.HTTPError as exc:
+    _log.warning("[x402-wallet] openclaw wake HTTP %s ref=%s", exc.code, ref)
+  except Exception as exc:
+    _log.warning("[x402-wallet] openclaw wake failed ref=%s: %s", ref, exc)
+  return False
 
 
 def _get_agent_provider_public_key() -> JWK | None:
@@ -374,6 +464,11 @@ def submit_x402_wallet_signature(
   record["signature"] = sig if sig.startswith("0x") else f"0x{sig}"
   record["tx_hash"] = tx
   record["signed_at"] = time.time()
+  sid = str(record.get("session_id") or "")
+  if not record.get("openclaw_woken_at") and _wake_openclaw_agent_after_x402_signed(
+      sid, rid
+  ):
+    record["openclaw_woken_at"] = time.time()
   save_wallet_sign_session(rid, record)
   return {
       "status": "ok",

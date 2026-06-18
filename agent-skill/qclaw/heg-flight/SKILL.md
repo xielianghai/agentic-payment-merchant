@@ -69,7 +69,7 @@ cd "$MERCHANT_HOME"
 
 5. **Onboard HEG** in Merchant Management → http://127.0.0.1:5273 → one-click onboard HEG Flight.
 
-6. **mcporter** points at this skill's `mcporter.json` (set automatically by `install-qclaw-skill.sh`).
+6. **mcporter** points at this skill's `mcporter.json` (set automatically by `sync-heg-flight-skill.sh`).
 
 7. Enable **`mcporter`** and **`heg-flight`** in `~/.qclaw/openclaw.json`, then restart QClaw.
 
@@ -194,8 +194,10 @@ second wallet-signing portal (**not** a second Trusted Surface portal):
    `payment_mandate_chain_id`, and `payment_nonce` from step 1.
 3. Post the returned **`wallet_sign_portal_url`** verbatim. It must be
    `/ts/x402/sign?ref=...` — **never** rewrite it to `/ts/confirm`.
-4. Call `ap2-buyer.wait_for_x402_wallet_signed` with **that x402 `ref`** (not the
-   Trusted Surface `ref` from step 6).
+4. Stop and wait for the user / OpenClaw hook to report MetaMask completion. If
+   the user says they signed, or a hook message says `x402 MetaMask wallet signed
+   (ref=...)`, call `ap2-buyer.wait_for_x402_wallet_signed` with **that x402
+   `ref`** (not the Trusted Surface `ref` from step 6).
 5. On **`signed`**: `ap2-cp.issue_payment_credential` →
    `ap2-merchant-adapter.complete_checkout` → `verify_checkout_receipt_tool`.
 
@@ -274,7 +276,9 @@ mcporter call ap2-buyer.register_price_monitor_tool \
 7. `wait_for_trusted_surface_signed`.
 8. On signed: `assemble_and_sign_immediate_mandates`.
 9. If `payment_method=x402`: `ap2-buyer.create_x402_wallet_sign_session` → post
-   **`wallet_sign_portal_url`** → `ap2-buyer.wait_for_x402_wallet_signed`.
+   **`wallet_sign_portal_url`** and stop. After the user / hook reports MetaMask
+   completion, call `ap2-buyer.wait_for_x402_wallet_signed` with the same x402
+   ref, then continue.
 10. **`ap2-cp.issue_payment_credential`** (once) → **`ap2-merchant-adapter.complete_checkout`**
     (once, string `payment_token` only) → `verify_checkout_receipt_tool` → post
     booking confirmed + **`purchase_complete`** JSON.

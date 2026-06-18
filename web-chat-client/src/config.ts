@@ -7,6 +7,11 @@ export const MERCHANT_TRIGGER_URL =
   (import.meta as { env?: { VITE_MERCHANT_TRIGGER_URL?: string } }).env
     ?.VITE_MERCHANT_TRIGGER_URL ?? "http://localhost:8091";
 
+/** Standalone H5 Trusted Surface (port 8104). */
+export const TS_BASE_URL =
+  (import.meta as { env?: { VITE_TS_BASE_URL?: string } }).env
+    ?.VITE_TS_BASE_URL ?? "http://localhost:8104";
+
 export type MerchantKey = "shoe" | "flight";
 
 const ENV_MERCHANT_PROFILE =

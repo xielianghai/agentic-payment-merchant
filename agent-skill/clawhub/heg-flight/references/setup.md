@@ -45,7 +45,7 @@ The source `agent-skill/openclaw/mcporter.json` uses paths relative to this repo
 
 ```bash
 cd "$MERCHANT_HOME/agent-skill"
-./install-qclaw-skill.sh
+./sync-heg-flight-skill.sh
 ```
 
 Target: `~/.qclaw/skills/heg-flight/`
@@ -53,7 +53,7 @@ Target: `~/.qclaw/skills/heg-flight/`
 Override paths:
 
 ```bash
-QCLAW_SKILL_DIR=~/.qclaw/skills/heg-flight QCLAW_CONFIG=~/.qclaw/openclaw.json ./install-qclaw-skill.sh
+QCLAW_SKILL_DIR=~/.qclaw/skills/heg-flight QCLAW_CONFIG=~/.qclaw/openclaw.json ./sync-heg-flight-skill.sh
 ```
 
 ## Smoke check

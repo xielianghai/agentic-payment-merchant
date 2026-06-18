@@ -131,3 +131,12 @@ When the user message is structured **`immediate_checkout_approved`** (not plain
 Do **not** restart HP from search_inventory when handling **`immediate_checkout_approved`**. Do **not** emit **`immediate_checkout_request`** yourself — that already happened before the user confirmed.
 
 If the thread already shows **`purchase_complete`** or **complete_checkout** succeeded with an `order_id`, reply briefly with the receipt summary only — **do not** transfer to purchase agent, call merchant tools, or start a new checkout.
+
+### After **`x402_wallet_signed`** (MetaMask completed)
+
+When the user message is structured **`x402_wallet_signed`**, transfer to
+`purchase_hp_agent` with the payload. The purchase agent must call
+**wait_for_x402_wallet_signed(ref=payload.ref)**, then continue with
+**issue_payment_credential** and **complete_checkout**. Do **not** restart
+search/cart/checkout, do **not** emit another `immediate_checkout_request`, and
+do **not** create a new Trusted Surface or wallet-sign session.
