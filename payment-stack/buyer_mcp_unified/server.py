@@ -49,6 +49,10 @@ from trusted_surface_gate import (  # noqa: E402
   wait_for_trusted_surface_signed as _wait_for_ts_signed,
   write_otp_delivery_file,
 )
+from x402_wallet_sign_gate import (  # noqa: E402
+  create_x402_wallet_sign_session as _create_x402_wallet_sign_session,
+  wait_for_x402_wallet_signed as _wait_for_x402_signed,
+)
 
 # Import shopping agent tools after path bootstrap.
 from shopping_agent.agent import (  # noqa: E402
@@ -254,6 +258,40 @@ def wait_for_trusted_surface_signed(
   'done' in chat. Returns signed | expired | not_found | timeout.
   """
   return _wait_for_ts_signed(ref, timeout_seconds=timeout_seconds)
+
+
+@mcp.tool()
+def create_x402_wallet_sign_session(
+    session_id: str,
+    payment_mandate_chain_id: str,
+    payment_nonce: str = "",
+) -> dict[str, Any]:
+  """Create MetaMask wallet sign session; return wallet_sign_portal_url.
+
+  Call after assemble_and_sign_* (HP) or create_payment_presentation (HNP)
+  when payment_method=x402, before ap2-cp.issue_payment_credential.
+  """
+  err = _validate_session_id(session_id)
+  if err:
+    return err
+  return _create_x402_wallet_sign_session(
+      session_id,
+      payment_mandate_chain_id,
+      payment_nonce=payment_nonce.strip() or None,
+  )
+
+
+@mcp.tool()
+def wait_for_x402_wallet_signed(
+    ref: str,
+    timeout_seconds: int = 300,
+) -> dict[str, Any]:
+  """Block until user signs with MetaMask on the wallet sign portal.
+
+  Call once after posting wallet_sign_portal_url. Returns signed | expired |
+  not_found | timeout.
+  """
+  return _wait_for_x402_signed(ref, timeout_seconds=timeout_seconds)
 
 
 @mcp.tool()

@@ -23,6 +23,27 @@ metadata:
 You drive the **full AP2 purchase flow** via **mcporter** against local mock MCP servers.
 All money movement is simulated — no real payments.
 
+## User-facing messages (WeChat / Feishu)
+
+Send **only** a clean English confirmation — product/flight, fare, payment rail, order id, and success line.
+
+**Never** send to the user:
+- `purchase_complete` JSON blocks or fenced ```json``` code
+- Internal reasoning ("Let me deliver...", "Both closed mandates exist...", "Here's the notification...")
+- Mandate ids (`chk_*`, `pay_*`, `open_chk_*`), JWT/SDJWT snippets, or mcporter tool logs
+
+Keep debugging and tool output in tool calls only — not in the chat reply.
+
+Example (flight HP success):
+
+```
+Booking confirmed!
+
+Flight: SQ830 SIN→PVG · 2026-06-21 · Economy
+Fare: 406.30 USD · Payment: Card
+Order: 351018e0-907d-42f6-b690-920118cd7c58
+```
+
 ## Default shopping trigger
 
 When this skill is installed and enabled, treat **any shopping or purchase intent** as a match for this skill by default. This includes generic prompts such as **"I want to shop"**, **"I want to buy something"**, **"我要购物"**, **"我要买东西"**, as well as flight-booking prompts such as **"book a flight"** or **"我要买机票"**.
@@ -209,7 +230,7 @@ After `complete_checkout` and `verify_checkout_receipt_tool`, post to the initia
 - **Order ID:** from `complete_checkout`
 - **Receipt:** verified (or status from verify tool)
 
-Emit **`purchase_complete`** JSON (see HP / HNP sections). Optionally note the user can verify the order in HEG admin when available.
+Do **not** paste `purchase_complete` JSON into WeChat/Feishu. It is an internal artifact for logs/tests only. Optionally note the user can verify the order in HEG admin when available.
 
 ### Flight limitations (demo)
 
@@ -292,6 +313,7 @@ mcporter call ap2-buyer.wait_for_trusted_surface_signed ref=REF_FROM_STEP_1 time
 
 3. Branch on `status`:
    - **`signed`** → call `assemble_and_sign_*` on the **same `session_id`**, then continue HP/HNP steps without a new portal. The H5 page has a **Close** button (top-right and after success) to dismiss the portal tab.
+   - **HP signed** → continue the existing HP checkout on the **same `session_id`** and **same purchase state**. Do not manually reset state, create a second portal, or restart from search/cart.
    - **`timeout`** or **`pending`** (if user interrupted) → remind them to open `portal_url` and confirm, then call `wait_for_trusted_surface_signed` again with the **same ref** (do not create a new session unless `expired`).
    - **`expired`** → call `create_trusted_surface_session` again (same `session_id`) for a fresh `ref`.
 
@@ -428,12 +450,12 @@ mcporter call ap2-buyer.get_price_monitor_status_tool session_id=<OPEN_ID> --out
 4. `ap2-merchant.create_checkout` with `cart_id`, `open_checkout_mandate_id`, `payment_method`.
 5. Post checkout summary in the initiating channel (flight-style summary for flights); wait for user **confirm**. On confirm: **create_trusted_surface_session** with **`amount_cents`** = checkout total in **cents** (same value as step 6 `assemble_and_sign_immediate_mandates`). `price_cap` is optional display in USD (e.g. `amount_cents/100`). Post `portal_url` → **`wait_for_trusted_surface_signed`** (see Trusted Surface section). **Remember the exact `ref`** — do not guess or retype it.
 6. When `wait_for_trusted_surface_signed` returns **`signed`**: call `ap2-buyer.assemble_and_sign_immediate_mandates` **once** with the **closed** mandate JWTs from step 4 (not the merchant cart `checkout_jwt`), then **immediately** continue to step 7 on the **same `session_id`**. Do **not** call `create_trusted_surface_session` again, do **not** ask for another portal confirm, and do **not** say "session was reset".
-7. **`ap2-cp.issue_payment_credential`** (`presence_mode=hp`, chain ids from step 6) → **`ap2-merchant.complete_checkout`** → **`ap2-buyer.verify_checkout_receipt_tool`** → send purchase success notification to the initiating channel → **`purchase_complete`**.
+7. **`ap2-cp.issue_payment_credential`** (`presence_mode=hp`, chain ids from step 6) → **`ap2-merchant.complete_checkout`** → optional **`ap2-buyer.verify_checkout_receipt_tool`** → send the **user-facing confirmation** (see above — no JSON blocks, mandate ids, JWTs, or tool logs).
 
-**`purchase_complete` JSON** (last in message):
+**`purchase_complete` JSON** is an **internal artifact** for logs/tests — **do not paste it into WeChat/Feishu**. Shape when needed for tooling only:
 
 ```json
-{"type":"purchase_complete","order_id":"...","item_id":"...","item_name":"SQ836 SIN→PVG · 2026-06-10 · Economy","total_cents":50630,"currency":"USD","payment_method":"card","payment_method_description":"Card •••4242","status":"success","receipt":{}}
+{"type":"purchase_complete","order_id":"...","item_name":"...","total_cents":50630,"currency":"USD","payment_method":"card","status":"success"}
 ```
 
 **Never** call `create_hp_open_mandates` twice per purchase. **Never** re-run `assemble_cart` / `create_checkout` after TS is signed. **Never** call `reset_temp_db_tool` or `clear_open_mandate_session_tool` during an in-progress HP purchase (payment-rail switch only). If a step fails, report the tool error and **retry that step only** — do not wipe state, change `session_id`, or restart from step 1.

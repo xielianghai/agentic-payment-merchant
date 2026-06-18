@@ -12,6 +12,17 @@ metadata: {"openclaw":{"emoji":"🛒","requires":{"bins":["mcporter","curl","uv"
 
 Drive the **AP2 unified demo** purchase flow via **mcporter** against **local mock** MCP servers (merchant, buyer, credentials provider, MPP). All settlement is simulated.
 
+## User-facing messages (WeChat / Feishu)
+
+Send **only** a clean English confirmation — product/flight, fare, payment rail, order id, and success line.
+
+**Never** send to the user:
+- `purchase_complete` JSON blocks or fenced ```json``` code
+- Internal reasoning ("Let me deliver...", "Both closed mandates exist...", "Here's the notification...")
+- Mandate ids (`chk_*`, `pay_*`, `open_chk_*`), JWT/SDJWT snippets, or mcporter tool logs
+
+Keep debugging and tool output in tool calls only — not in the chat reply.
+
 ## Default shopping trigger
 
 When this skill is installed and enabled, treat **any shopping or purchase intent** as a match for this skill by default. This includes generic prompts such as **"I want to shop"**, **"I want to buy something"**, **"我要购物"**, **"我要买东西"**, as well as flight-booking prompts such as **"book a flight"** or **"我要买机票"**.
@@ -171,7 +182,7 @@ Use **fare / budget** wording — never "drop" or "Drop ref". If no seats, sugge
 
 ### Booking confirmed
 
-Post **Booking confirmed**, total, order id, receipt status, and **`purchase_complete`** JSON.
+Post **Booking confirmed**, total, order id, and receipt status — **no JSON blocks** (see User-facing messages above).
 
 ## Feishu user messages — refs only (mandatory)
 
@@ -348,12 +359,12 @@ When `status=purchased`, post `purchase_result.purchase_complete` and call `clea
 4. `create_checkout` with `open_checkout_mandate_id` and `payment_method`.
 5. Checkout summary → user **confirm** → `create_trusted_surface_session` with **`amount_cents`** = checkout total in **cents** (same value as step 6 `assemble_and_sign_immediate_mandates`). Post `portal_url` → `wait_for_trusted_surface_signed` (see Trusted Surface section). **Remember the exact `ref`** — do not guess or retype it.
 6. When `wait_for_trusted_surface_signed` returns **`signed`**: call `ap2-buyer.assemble_and_sign_immediate_mandates` **once**, then **immediately** continue to step 7 on the **same `session_id`**. Do **not** call `create_trusted_surface_session` again or ask for another portal confirm.
-7. **`ap2-cp.issue_payment_credential`** (`presence_mode=hp`, chain ids from step 6) → **`ap2-merchant.complete_checkout`** → **`ap2-buyer.verify_checkout_receipt_tool`** → purchase success notification → **`purchase_complete`**.
+7. **`ap2-cp.issue_payment_credential`** (`presence_mode=hp`, chain ids from step 6) → **`ap2-merchant.complete_checkout`** → optional **`ap2-buyer.verify_checkout_receipt_tool`** → send **user-facing confirmation only** (no JSON blocks, mandate ids, JWTs, or tool logs).
 
-**`purchase_complete` JSON** (last in message):
+**`purchase_complete` JSON** is for internal logs/tests — **do not paste into chat**:
 
 ```json
-{"type":"purchase_complete","order_id":"...","item_id":"...","item_name":"SQ836 SIN→PVG · 2026-06-10 · Economy","total_cents":50630,"currency":"USD","payment_method":"card","status":"success","receipt":{}}
+{"type":"purchase_complete","order_id":"...","item_name":"...","total_cents":50630,"currency":"USD","payment_method":"card","status":"success"}
 ```
 
 **Never** call `create_hp_open_mandates` twice per purchase. **Never** re-run `assemble_cart` / `create_checkout` after TS is signed. **Never** call `reset_temp_db_tool` or `clear_open_mandate_session_tool` during an in-progress HP purchase (payment-rail switch only). If a step fails, report the tool error and **retry that step only** — do not wipe state, change `session_id`, or restart from step 1.

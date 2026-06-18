@@ -70,6 +70,40 @@ class UcpService:
         self.store.save_cart(cart_id, cart)
         return cart
 
+    async def register_heg_cart(
+        self,
+        item_id: str,
+        qty: int,
+        heg_cart: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Mirror an HEG MCP cart (presale issueId) into the UCP store."""
+        issue_id = heg_cart.get("cart_id")
+        if not issue_id:
+            raise ValueError("HEG cart missing cart_id (issueId)")
+
+        item = self.store.get_item(item_id) or {}
+        total_minor = int(heg_cart.get("total") or 0)
+        line_items = heg_cart.get("line_items") or [
+            {
+                "item_id": item_id,
+                "qty": qty,
+                "unit_price": total_minor,
+                "item_name": item.get("name"),
+            }
+        ]
+        cart_id = self.store.new_id("CART")
+        cart = {
+            "id": cart_id,
+            "issue_id": issue_id,
+            "item_id": item_id,
+            "qty": qty,
+            "total": total_minor,
+            "currency": heg_cart.get("currency") or item.get("currency") or "USD",
+            "line_items": line_items,
+        }
+        self.store.save_cart(cart_id, cart)
+        return cart
+
     async def create_checkout_session(self, cart_ref: str) -> dict[str, Any]:
         cart = self.store.get_cart(cart_ref)
         if not cart:

@@ -1,6 +1,5 @@
 """Adapter MCP server — routes merchant tools via UCP REST + HEG AP2 checkout."""
 
-from __future__ import annotations
 
 import asyncio
 import importlib.util
@@ -26,6 +25,7 @@ for _p in (_ADAPTER_ROOT, _AP2_SDK_ROOT):
         sys.path.insert(0, str(_p))
 
 from config import get_settings  # noqa: E402
+from services.heg_client import _routing_key_from_item_id  # noqa: E402
 from services.registry import fetch_active_merchants, load_active_merchant_selection  # noqa: E402
 
 mcp = FastMCP("Agentic Payment Merchant Adapter")
@@ -114,11 +114,57 @@ def _load_heg_mcp() -> Any:
 
 
 async def _call_heg(fn_name: str, *args, **kwargs) -> Any:
+    import inspect
+
+    from fastmcp.tools import FunctionTool as _FunctionTool
+
     fn: Callable[..., Any] = getattr(_load_heg_mcp(), fn_name)
+    if isinstance(fn, _FunctionTool):
+        target = getattr(fn, "fn", None) or getattr(fn, "_fn", None)
+        if target is not None and args:
+            params = list(inspect.signature(target).parameters.keys())
+            for i, value in enumerate(args):
+                if i < len(params) and params[i] not in kwargs:
+                    kwargs[params[i]] = value
+        result = await fn.run(kwargs)
+        if hasattr(result, "structured_content") and result.structured_content:
+            return result.structured_content
+        if hasattr(result, "content"):
+            return result.content
+        return result
     result = fn(*args, **kwargs)
     if asyncio.iscoroutine(result):
         return await result
     return result
+
+
+def _heg_flight_state_path() -> Path:
+    return Path(os.environ.get("TEMP_DB_DIR", _settings().temp_db_dir)) / "heg_flight_state.json"
+
+
+def _seed_heg_flight_state(item_id: str, item: dict[str, Any]) -> None:
+    """Ensure HEG MCP flight state exists when search went through UCP only."""
+    path = _heg_flight_state_path()
+    state: dict[str, Any] = {}
+    if path.is_file():
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            state = {}
+    search_body = item.get("search_body") or {}
+    routing_key = item.get("routing_key") or _routing_key_from_item_id(item_id)
+    state[item_id] = {
+        "routing_key": routing_key,
+        "from_city": search_body.get("fromCity", "SIN"),
+        "to_city": search_body.get("toCity", "PVG"),
+        "from_date": search_body.get("fromDate", "2026-06-21"),
+        "cabin_class": search_body.get("cabinClass", "Y"),
+        "adult_num": search_body.get("adultNum", 1),
+        "price": item.get("price", 0),
+        "currency": item.get("currency", "USD"),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
 
 async def get_active_merchant_key() -> str:
@@ -166,36 +212,95 @@ async def check_product(
     item_id: str,
     constraint_price_cap: float | None = None,
 ) -> dict[str, Any]:
-    """Check flight availability via UCP-backed catalog."""
-    result = await search_inventory(item_id, constraint_price_cap)
-    matches = result.get("matches") or []
-    match = next((m for m in matches if m.get("item_id") == item_id), matches[0] if matches else None)
-    if not match:
-        return {"item_id": item_id, "available": False}
+    """Check flight availability via verify_price using cached catalog item."""
+    from services.ucp_service import UcpService
+
+    svc = UcpService()
+    item = svc.store.get_item(item_id)
+    if not item and not (item_id or "").strip().startswith("rt_"):
+        # Natural-language fallback only when item_id is not an HEG routing slug.
+        result = await search_inventory(item_id, constraint_price_cap)
+        matches = result.get("matches") or []
+        item = next((m for m in matches if m.get("item_id") == item_id), None)
+        if item:
+            svc.store.save_item(item_id, item)
+
+    if not item:
+        return {
+            "item_id": item_id,
+            "available": False,
+            "message": f"Flight {item_id!r} not found. Call search_inventory first.",
+        }
+
+    routing_key = item.get("routing_key") or _routing_key_from_item_id(item_id)
+    search_body = item.get("search_body") or {}
+    verify = await svc.heg.verify_price(routing_key, search_body)
+    if str(verify.get("status")) != "200":
+        return {
+            "item_id": item_id,
+            "price": item.get("price"),
+            "available": False,
+            "currency": item.get("currency") or "USD",
+            "message": verify.get("msg") or "Flight not available or no seats at this time.",
+            "display_name": item.get("name") or item_id,
+        }
+
+    price_info = (verify.get("routing") or {}).get("priceInfo") or {}
+    total = float(price_info.get("totalPrices") or item.get("price") or 0)
+    if constraint_price_cap is not None and total > constraint_price_cap:
+        return {
+            "item_id": item_id,
+            "price": total,
+            "available": False,
+            "currency": price_info.get("currency") or item.get("currency") or "USD",
+            "message": f"Price {total} exceeds cap {constraint_price_cap}.",
+            "display_name": item.get("name") or item_id,
+        }
+
     return {
         "item_id": item_id,
-        "price": match.get("price"),
+        "price": total,
         "available": True,
-        "currency": match.get("currency") or "USD",
+        "currency": price_info.get("currency") or item.get("currency") or "USD",
         "payment_method": "card",
         "payment_method_description": "Card payment via AP2",
-        "display_name": match.get("display_name") or item_id,
+        "display_name": item.get("name") or item_id,
     }
 
 
 @mcp.tool()
 async def assemble_cart(item_id: str, qty: int) -> dict[str, Any]:
-    """Create UCP cart (HEG verify + presale) and return AP2-compatible cart_id."""
-    cart = await _ucp_post("/carts", {"item_id": item_id, "qty": qty})
-    issue_id = cart.get("issue_id")
+    """Create UCP cart synced with HEG MCP presale (single issueId for AP2 checkout)."""
+    from services.ucp_service import UcpService
+
+    svc = UcpService()
+    item = svc.store.get_item(item_id)
+    if not item:
+        matches = await svc.catalog_search(item_id)
+        catalog_matches = matches.get("matches") or []
+        item = next((m for m in catalog_matches if m.get("item_id") == item_id), None)
+    if not item:
+        return {
+            "error": "item_not_found",
+            "message": f"Flight {item_id!r} not found. Call search_inventory first.",
+        }
+
+    _seed_heg_flight_state(item_id, item)
+    heg_cart = await _call_heg("assemble_cart", item_id, qty)
+    if isinstance(heg_cart, dict) and heg_cart.get("error"):
+        return heg_cart
+
+    ucp_cart = await svc.register_heg_cart(item_id, qty, heg_cart)
+    issue_id = ucp_cart.get("issue_id") or heg_cart.get("cart_id")
     return {
-        "cart_id": issue_id or cart.get("id"),
-        "ucp_cart_id": cart.get("id"),
+        "cart_id": issue_id,
+        "ucp_cart_id": ucp_cart.get("id"),
         "issue_id": issue_id,
-        "total": cart.get("total"),
-        "currency": cart.get("currency") or "USD",
-        "line_items": cart.get("line_items") or [],
-        "protocol": "UCP",
+        "total": heg_cart.get("total"),
+        "currency": heg_cart.get("currency") or "USD",
+        "line_items": heg_cart.get("line_items") or [],
+        "protocol": "UCP+AP2",
+        "reused": heg_cart.get("reused", False),
     }
 
 

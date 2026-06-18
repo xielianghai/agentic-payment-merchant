@@ -108,7 +108,7 @@ export function formatMoneyMinor(
 
 export function defaultChatStarterMessage(merchant: MerchantKey): string {
   return isFlightMerchant(merchant)
-    ? "Find Singapore Airlines flights from SIN to PVG economy on June 10 for 1 adult."
+    ? "Find Singapore Airlines flights from SIN to PVG economy on June 21 for 1 adult."
     : 'When is the SuperShoe limited edition Gold sneaker drop? I need size 9 women\'s.';
 }
 
@@ -127,7 +127,7 @@ export function getScenarioStarterHints(merchant: MerchantKey) {
         ? "search → Approve & Sign → monitoring → autonomous purchase when price ≤ budget"
         : "product preview → Approve & Sign → monitoring → autonomous purchase",
       example: flight
-        ? "Book Singapore Airlines SIN to PVG economy June 10 for 1 adult — budget USD 600."
+        ? "Book Singapore Airlines SIN to PVG economy June 21 for 1 adult — budget USD 600."
         : 'When is the SuperShoe limited edition Gold sneaker drop? I need size 9 women\'s, budget $200.',
       accent: "hnp" as const,
     },
@@ -138,7 +138,7 @@ export function getScenarioStarterHints(merchant: MerchantKey) {
         ? "search → checkout → Confirm & pay → ticket issued"
         : "search → checkout → Confirm & pay → pay at checkout",
       example: flight
-        ? "Buy Singapore Airlines SIN to PVG economy June 10 for 1 adult now with card."
+        ? "Buy Singapore Airlines SIN to PVG economy June 21 for 1 adult now with card."
         : 'Buy SuperShoe Gold size 9 women\'s in stock today — purchase now with card.',
       accent: "hp" as const,
     },
@@ -169,7 +169,7 @@ export function getMerchantDemo(merchant: MerchantKey) {
       ? "Human Not Present: search → mandate → monitoring → autonomous booking when price ≤ budget"
       : "Human Not Present: product preview → mandate → monitoring → autonomous purchase",
     inputPlaceholder: flight
-      ? "e.g. Buy Singapore Airlines SIN to PVG economy June 10 for 1 adult now with card."
+      ? "e.g. Buy Singapore Airlines SIN to PVG economy June 21 for 1 adult now with card."
       : "e.g. When is the SuperShoe limited edition Gold sneaker drop? I need size 9 women's.",
     enterKeySuffix: flight
       ? " to start (defaults to Singapore Airlines flight search)"

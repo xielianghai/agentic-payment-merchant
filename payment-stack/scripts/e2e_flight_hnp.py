@@ -22,15 +22,14 @@ from typing import Any
 from urllib import parse, request
 
 _UNIFIED = Path(__file__).resolve().parents[1]
-_ROLES = _UNIFIED / "roles"
-_AGENT = _ROLES / "shopping_agent_unified"
-_SAMPLES_SRC = _UNIFIED.parents[2] / "src"
-_HEG_MCP = Path(
-    os.environ.get(
-        "HEG_FLIGHT_MCP_SERVER",
-        str(_UNIFIED.parents[5].parent / "heg_flight_mock" / "mcp" / "server.py"),
-    )
-)
+_ROLES = _UNIFIED
+_AGENT = _UNIFIED / "shopping_agent_unified"
+
+sys.path.insert(0, str(_UNIFIED))
+from path_setup import ensure_src_on_path, resolve_heg_mcp_server  # noqa: E402
+
+_SAMPLES_SRC = ensure_src_on_path()
+_HEG_MCP = resolve_heg_mcp_server()
 
 os.environ.setdefault("TEMP_DB_DIR", str(_UNIFIED / ".temp-db"))
 os.environ.setdefault("AP2_DISABLE_TS_GATE", "1")

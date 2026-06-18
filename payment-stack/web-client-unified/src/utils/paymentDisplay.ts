@@ -1,4 +1,4 @@
-/** Demo user wallet (matches x402 CP list_wallets / DEFAULT_USER_PRIVATE_KEY). */
+/** Demo fallback wallet used only before MetaMask has provided a real address. */
 export const DEMO_X402_USER_ADDRESS =
     '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 
@@ -31,13 +31,13 @@ export function formatPaymentDisplay(
                 /0x[a-fA-F0-9]+(?:\.\.\.[a-fA-F0-9]+)?/,
                 masked,
             ) :
-            `x402 · ${masked} · USDC (Base Sepolia)`,
-        badge: 'USDC (Base Sepolia)',
+            `x402 · ${masked} · SepoliaETH (Sepolia)`,
+        badge: 'SepoliaETH (Sepolia)',
       };
     }
     return {
-      label: `x402 · ${masked} · USDC (Base Sepolia)`,
-      badge: 'USDC (Base Sepolia)',
+      label: description || `x402 · MetaMask · SepoliaETH (Sepolia)`,
+      badge: 'SepoliaETH (Sepolia)',
     };
   }
   return {

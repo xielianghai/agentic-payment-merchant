@@ -3,7 +3,11 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MERCHANT_HOME="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+MERCHANT_HOME="${MERCHANT_HOME:-}"
+if [ -z "$MERCHANT_HOME" ]; then
+  SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+  MERCHANT_HOME="$(cd "$SKILL_DIR/../../.." && pwd)"
+fi
 PAYMENT_STACK="$MERCHANT_HOME/payment-stack"
 
 # shellcheck disable=SC1091
@@ -29,7 +33,9 @@ CP_MCP_PORT="${UNIFIED_CP_MCP_PORT:-8102}"
 MPP_MCP_PORT="${UNIFIED_MPP_MCP_PORT:-8103}"
 MCP_PATH="${AP2_MCP_HTTP_PATH:-/mcp}"
 
-export TEMP_DB_DIR="${TEMP_DB_DIR:-$PAYMENT_STACK/.temp-db}"
+# Must match payment-stack/start.sh (Trusted Surface on :8104). Do not inherit
+# AP2 unified demo TEMP_DB_DIR from the shell — that splits ts_sessions.json.
+export TEMP_DB_DIR="$PAYMENT_STACK/.temp-db"
 export AP2_TS_H5="${AP2_TS_H5:-1}"
 export AP2_REQUIRE_OTP="${AP2_REQUIRE_OTP:-0}"
 export TS_BASE_URL="${TS_BASE_URL:-http://localhost:${UNIFIED_TRUSTED_SURFACE_PORT:-8104}}"

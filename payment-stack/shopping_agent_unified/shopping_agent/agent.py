@@ -17,6 +17,8 @@ from mcp import StdioServerParameters
 
 _ROLES_DIR = Path(__file__).resolve().parents[2]
 _UNIFIED_ROOT = _ROLES_DIR.parent
+if str(_ROLES_DIR) not in sys.path:
+  sys.path.insert(0, str(_ROLES_DIR))
 
 from constants_unified import (
     MPP_INITIATE_PAYMENT_URL,
@@ -45,6 +47,14 @@ from shopping_agent.merchant_profile import (
   merchant_instruction_block,
   normalize_merchant_key,
   set_active_merchant_key,
+)
+from x402_wallet_sign_gate import (  # noqa: E402
+  create_x402_wallet_sign_session as _create_x402_wallet_sign_session,
+  wait_for_x402_wallet_signed,
+)
+from trusted_surface_gate import (  # noqa: E402
+  create_ts_session,
+  wait_for_trusted_surface_signed as _wait_for_trusted_surface_signed,
 )
 
 _AGENT_DIR = Path(__file__).resolve().parent
@@ -130,10 +140,22 @@ def _make_mcp_toolset(server_path: Path, tool_filter=None) -> McpToolset:
   )
 
 
-def _payment_method_description(payment_method: str) -> str:
+def _payment_method_description(
+    payment_method: str, session_id: str = ""
+) -> str:
   """Human-readable payment rail label for mandate / checkout UI."""
   if payment_method == "x402":
     try:
+      from common.x402_eip712 import x402_wallet_mode
+      from common.x402_wallet_sign_store import get_wallet_address_for_session
+
+      if x402_wallet_mode() != "mock":
+        addr = get_wallet_address_for_session(session_id) if session_id else None
+        if addr:
+          masked = f"{addr[:6]}...{addr[-4:]}"
+          return f"x402 · {masked} · SepoliaETH (Sepolia)"
+        return "x402 · MetaMask · SepoliaETH (Sepolia)"
+
       from eth_account import Account
 
       from common.x402_constants import DEFAULT_USER_PRIVATE_KEY
@@ -143,10 +165,61 @@ def _payment_method_description(payment_method: str) -> str:
       )
       address = Account.from_key(private_key).address
       masked = f"{address[:6]}...{address[-4:]}"
-      return f"x402 · {masked} · USDC (Base Sepolia)"
+      return f"x402 · {masked} · SepoliaETH (Sepolia)"
     except Exception:
-      return "x402 · USDC (Base Sepolia)"
+      return "x402 · SepoliaETH (Sepolia)"
   return "Card •••4242"
+
+
+def _tool_context_session_id(tool_context: ToolContext) -> str:
+  """Best-effort session id for payment display labels."""
+  try:
+    return str(tool_context._invocation_context.session.id)
+  except AttributeError:
+    return ""
+
+
+def create_x402_wallet_sign_session(
+    payment_mandate_chain_id: str,
+    tool_context: ToolContext,
+    payment_nonce: str = "",
+) -> dict[str, Any]:
+  """Create a MetaMask x402 signing session for the current ADK session."""
+  return _create_x402_wallet_sign_session(
+      _tool_context_session_id(tool_context),
+      payment_mandate_chain_id,
+      payment_nonce=payment_nonce.strip() or None,
+  )
+
+
+def create_trusted_surface_session(
+    price_cap: float,
+    tool_context: ToolContext,
+    payment_method: str = "card",
+    item_id: str = "",
+    item_name: str = "",
+    presence_mode: str = "hp",
+    amount_cents: int = 0,
+) -> dict[str, Any]:
+  """Create H5 Trusted Surface session; return portal_url (/ts/confirm?ref=...)."""
+  ts_amount_cents = amount_cents if amount_cents > 0 else None
+  return create_ts_session(
+      _tool_context_session_id(tool_context),
+      price_cap=price_cap,
+      payment_method=payment_method,
+      item_id=item_id,
+      item_name=item_name,
+      presence_mode=presence_mode,
+      amount_cents=ts_amount_cents,
+  )
+
+
+def wait_for_trusted_surface_signed(
+    ref: str,
+    timeout_seconds: int = 300,
+) -> dict[str, Any]:
+  """Poll until user confirms on /ts/confirm (card/HNP mandate portal)."""
+  return _wait_for_trusted_surface_signed(ref, timeout_seconds=timeout_seconds)
 
 
 def set_ap2_session_config(
@@ -202,7 +275,9 @@ def set_ap2_session_config(
       "status": "ok",
       "presence_mode": presence,
       "payment_method": payment,
-      "payment_method_description": _payment_method_description(payment),
+      "payment_method_description": _payment_method_description(
+          payment, _tool_context_session_id(tool_context)
+      ),
       "merchant": merchant_key,
       "merchant_display_name": profile.display_name,
       "currency": profile.currency,
@@ -279,7 +354,9 @@ def get_ap2_session_config(tool_context: ToolContext) -> dict[str, str]:
       "merchant_instruction": merchant_instruction_block(profile),
   }
   if presence and payment:
-    result["payment_method_description"] = _payment_method_description(payment)
+    result["payment_method_description"] = _payment_method_description(
+        payment, _tool_context_session_id(tool_context)
+    )
   log_op(_logger, "shopping-agent", "get_ap2_session_config", **result)
   return result
 
@@ -444,6 +521,8 @@ purchase_hnp_agent = Agent(
             _BUYER_SERVER,
             tool_filter=lambda tool, ctx=None: tool.name == "clear_price_monitor_tool",
         ),
+        create_x402_wallet_sign_session,
+        wait_for_x402_wallet_signed,
         *_MCP_TOOLS_PURCHASE,
     ],
     after_tool_callback=_error_escalation_callback,
@@ -459,6 +538,10 @@ purchase_hp_agent = Agent(
         create_hp_open_mandates_tool,
         assemble_and_sign_immediate_mandates_tool,
         get_ap2_session_config,
+        create_x402_wallet_sign_session,
+        wait_for_x402_wallet_signed,
+        create_trusted_surface_session,
+        wait_for_trusted_surface_signed,
         *_MCP_TOOLS_PURCHASE,
     ],
     after_tool_callback=_error_escalation_callback,

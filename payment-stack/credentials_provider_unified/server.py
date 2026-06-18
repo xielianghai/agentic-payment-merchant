@@ -163,79 +163,24 @@ def _issue_x402_credential_after_verify(
     parsed_chain: PaymentMandateChain,
     checkout_jwt_hash: str,
     payment_nonce: str,
+    payment_mandate_chain_id: str = "",
 ) -> Mapping[str, Any]:
   """Issue x402 bundled token after HP verify (user-key closed hop already verified)."""
   import time
   import uuid
 
-  from common.x402_constants import (
-    DEFAULT_MERCHANT_ADDRESS,
-    DEFAULT_USDC_CONTRACT,
-    DEFAULT_USER_PRIVATE_KEY,
-  )
-  from eth_account import Account
-  from web3 import Web3
+  from common.x402_eip712 import issue_x402_bundled
 
-  chain = parsed_chain
-  try:
-    payee_address = chain.closed_mandate.payment_instrument.payee_address
-    amount_cents = chain.closed_mandate.payment_amount.amount
-    if not payee_address:
-      payee_address = (
-          os.environ.get("MERCHANT_WALLET_ADDRESS") or DEFAULT_MERCHANT_ADDRESS
-      )
-  except AttributeError:
-    payee_address = (
-        os.environ.get("MERCHANT_WALLET_ADDRESS") or DEFAULT_MERCHANT_ADDRESS
-    )
-    amount_cents = 1250
-
-  nonce = Web3.keccak(text=mandate_chain)
-  private_key = os.environ.get("X402_USER_PRIVATE_KEY") or DEFAULT_USER_PRIVATE_KEY
-  account = Account.from_key(private_key)
-  usdc_value = amount_cents * 10000
-  domain = {
-      "name": "USD Coin",
-      "version": "2",
-      "chainId": 84532,
-      "verifyingContract": DEFAULT_USDC_CONTRACT,
-  }
-  types = {
-      "TransferWithAuthorization": [
-          {"name": "from", "type": "address"},
-          {"name": "to", "type": "address"},
-          {"name": "value", "type": "uint256"},
-          {"name": "validAfter", "type": "uint256"},
-          {"name": "validBefore", "type": "uint256"},
-          {"name": "nonce", "type": "bytes32"},
-      ]
-  }
-  message = {
-      "from": account.address,
-      "to": payee_address,
-      "value": usdc_value,
-      "validAfter": 0,
-      "validBefore": int(time.time()) + 3600,
-      "nonce": nonce,
-  }
-  signed_message = Account.sign_typed_data(
-      private_key, domain_data=domain, message_types=types, message_data=message
+  bundled_result = issue_x402_bundled(
+      mandate_chain,
+      parsed_chain,
+      payment_nonce,
+      payment_mandate_chain_id,
   )
-  bundled = {
-      "payment_mandate_chain": mandate_chain,
-      "payment_nonce": payment_nonce,
-      "eip_3009_payload": {
-          "signature": signed_message.signature.hex(),
-          "authorization": {
-              "from": account.address,
-              "to": payee_address,
-              "value": str(usdc_value),
-              "validAfter": "0",
-              "validBefore": str(message["validBefore"]),
-              "nonce": nonce.hex(),
-          },
-      },
-  }
+  if "error" in bundled_result:
+    return bundled_result
+  bundled = bundled_result
+
   token_id = "x402_tok_" + str(uuid.uuid4()).replace("-", "")
   expires_at = int(time.time()) + 300
   store = _load_token_store()
@@ -296,6 +241,7 @@ def _issue_payment_credential_hp(
         chain,
         checkout_jwt_hash,
         payment_nonce,
+        payment_mandate_chain_id,
     )
 
   import time

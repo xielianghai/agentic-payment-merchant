@@ -3,7 +3,11 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MERCHANT_HOME="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+MERCHANT_HOME="${MERCHANT_HOME:-}"
+if [ -z "$MERCHANT_HOME" ]; then
+  SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+  MERCHANT_HOME="$(cd "$SKILL_DIR/../../.." && pwd)"
+fi
 PAYMENT_STACK="$MERCHANT_HOME/payment-stack"
 
 # shellcheck disable=SC1091

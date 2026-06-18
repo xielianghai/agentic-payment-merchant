@@ -116,7 +116,7 @@ export function getScenarioStarterHints(merchant: MerchantKey) {
     },
     payment: flight
       ? "Payment: say card or x402 / crypto in chat. Prices are in USD. After switching payment rails, Approve & Sign again."
-      : "Payment: say card (credit card) or x402 / crypto (on-chain USDC) in chat. After switching payment rails, Approve & Sign again.",
+      : "Payment: say card (credit card) or x402 / crypto (on-chain SepoliaETH) in chat. After switching payment rails, Approve & Sign again.",
   } as const;
 }
 

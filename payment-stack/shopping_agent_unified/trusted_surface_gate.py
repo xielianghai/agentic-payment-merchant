@@ -57,8 +57,12 @@ _SESSIONS: dict[str, dict[str, Any]] = {}
 
 
 def _temp_db() -> Path:
+  env = os.environ.get("TEMP_DB_DIR", "").strip()
+  if env:
+    return Path(env)
+  # payment-stack/shopping_agent_unified/trusted_surface_gate.py → payment-stack/.temp-db
   unified = Path(__file__).resolve().parents[1]
-  return Path(os.environ.get("TEMP_DB_DIR", unified.parent / ".temp-db"))
+  return unified / ".temp-db"
 
 
 def _approvals_file() -> Path:

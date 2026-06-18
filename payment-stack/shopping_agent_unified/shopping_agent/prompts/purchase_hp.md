@@ -17,13 +17,14 @@ HP needs **open mandates before** merchant `create_checkout`, and **closed manda
    `{"type":"immediate_checkout_request","item_id":"...","item_name":"{{EXAMPLE_ITEM_NAME}}","total_cents":{{EXAMPLE_TOTAL_CENTS}},"currency":"{{CURRENCY}}","payment_method":"card","payment_method_description":"Card •••4242"}`
    - `total_cents` = checkout total in **minor units** (e.g. {{CURRENCY}} 10.70 → `1070`).
    - Always set `currency` to `"{{CURRENCY}}"` from tool results — never default to another currency.
-   - `payment_method` / `payment_method_description` from **get_ap2_session_config** (`card` → `Card •••4242`; `x402` → `x402 · 0xf39F...2266 · USDC (Base Sepolia)` with masked user wallet).
+   - `payment_method` / `payment_method_description` from **get_ap2_session_config** (`card` → `Card •••4242`; `x402` → `x402 · MetaMask · SepoliaETH (Sepolia)` or masked wallet after sign).
    - **Stop and wait** for `immediate_checkout_approved`. Do not call mandate tools yet.
 6. When the user sends **`immediate_checkout_approved`**, **resume at this step** — do **not** call **search_inventory**, **check_product**, **assemble_cart**, or **create_checkout** again (re-running them creates a duplicate order). Call **assemble_and_sign_immediate_mandates_tool** with JSON from your **earlier** step 4 result:
    - `checkout_jwt`, `checkout_jwt_hash`, `amount_cents`, `item_id`, `price_cap`, `qty`, `payment_method`
    - Open mandates are reused from step 3 (session) — do **not** call **create_hp_open_mandates_tool** again.
-7. **issue_payment_credential** → **complete_checkout** — always pass `payment_method` (`card` or `x402`) to **both** `create_checkout` and `complete_checkout` so the merchant settles on the correct rail.
-8. Emit **`purchase_complete`** JSON (last in message) and **stop** — do not call assemble_cart, create_checkout, or mandate tools again:
+7. **(x402 only)** Before **issue_payment_credential**: call **create_x402_wallet_sign_session** with `payment_mandate_chain_id` and `payment_nonce` from step 6 → post **`wallet_sign_portal_url`** (path **`/ts/x402/sign`**, NOT `/ts/confirm`) → **wait_for_x402_wallet_signed** (user signs in Chrome with MetaMask on Sepolia).
+8. **issue_payment_credential** → **complete_checkout** — always pass `payment_method` (`card` or `x402`) to **both** `create_checkout` and `complete_checkout` so the merchant settles on the correct rail.
+9. Emit **`purchase_complete`** JSON (last in message) and **stop** — do not call assemble_cart, create_checkout, or mandate tools again:
    `{"type":"purchase_complete","order_id":"...","item_id":"...","item_name":"...","total_cents":{{EXAMPLE_TOTAL_CENTS}},"currency":"{{CURRENCY}}","payment_method":"card","payment_method_description":"Card •••4242","status":"success","receipt":{...}}`
    - `order_id` from **complete_checkout**.
    - `total_cents` / `item_*` / `payment_method*` / `currency` from the matching **immediate_checkout_request** and session config.

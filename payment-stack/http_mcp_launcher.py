@@ -31,7 +31,9 @@ def main() -> None:
 
   from path_setup import bootstrap_unified  # noqa: E402
 
-  bootstrap_unified(server_path)
+  roles_root = bootstrap_unified(server_path)
+  # Buyer/cp/mpp HTTP MCP must share TEMP_DB with trusted_surface_unified (:8104).
+  os.environ["TEMP_DB_DIR"] = str(roles_root / ".temp-db")
 
   spec = importlib.util.spec_from_file_location(
       f"http_mcp_{server_path.stem}", server_path

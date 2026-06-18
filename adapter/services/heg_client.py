@@ -7,6 +7,33 @@ import httpx
 
 from config import get_settings
 
+_MONTH_NAMES: dict[str, int] = {
+    "january": 1,
+    "jan": 1,
+    "february": 2,
+    "feb": 2,
+    "march": 3,
+    "mar": 3,
+    "april": 4,
+    "apr": 4,
+    "may": 5,
+    "june": 6,
+    "jun": 6,
+    "july": 7,
+    "jul": 7,
+    "august": 8,
+    "aug": 8,
+    "september": 9,
+    "sep": 9,
+    "sept": 9,
+    "october": 10,
+    "oct": 10,
+    "november": 11,
+    "nov": 11,
+    "december": 12,
+    "dec": 12,
+}
+
 
 def _routing_key_from_item_id(item_id: str) -> str:
     id_ = (item_id or "").strip()
@@ -18,9 +45,10 @@ def _routing_key_from_item_id(item_id: str) -> str:
 def _parse_search_query(query: str) -> dict[str, Any]:
     text = (query or "").strip()
     upper = text.upper()
+    lower = text.lower()
     from_city = "SIN"
     to_city = "PVG"
-    from_date = "2026-06-10"
+    from_date = "2026-06-21"
     cabin = "Y"
     adult_num = 1
 
@@ -36,9 +64,27 @@ def _parse_search_query(query: str) -> dict[str, Any]:
     if date_match:
         from_date = date_match.group(1)
     else:
-        month_match = re.search(r"(20\d{2})[-/年](\d{1,2})", text)
-        if month_match:
-            from_date = f"{month_match.group(1)}-{int(month_match.group(2)):02d}-10"
+        ymd_match = re.search(r"\b(20\d{2})(\d{2})(\d{2})\b", text)
+        if ymd_match:
+            from_date = f"{ymd_match.group(1)}-{ymd_match.group(2)}-{ymd_match.group(3)}"
+        else:
+            for month_name, month_num in _MONTH_NAMES.items():
+                month_match = re.search(
+                    rf"\b{month_name}\s+(\d{{1,2}})(?:\s+(20\d{{2}}))?\b",
+                    lower,
+                )
+                if not month_match:
+                    continue
+                day = int(month_match.group(1))
+                year = int(month_match.group(2)) if month_match.group(2) else date.today().year
+                try:
+                    travel = date(year, month_num, day)
+                    if not month_match.group(2) and travel < date.today():
+                        travel = date(year + 1, month_num, day)
+                    from_date = travel.strftime("%Y-%m-%d")
+                    break
+                except ValueError:
+                    continue
 
     if "BUSINESS" in upper or "商务" in text or " C " in f" {upper} ":
         cabin = "C"

@@ -10,6 +10,11 @@ Endpoints:
   POST /ts/passkey/verify    - verify passkey assertion + approve
   POST /ts/approve           - user confirms (+ optional PIN fallback)
   GET  /ts/status            - pending | signed | expired
+  POST /ts/x402/sessions     - create MetaMask wallet sign session
+  GET  /ts/x402/sign         - MetaMask EIP-712 signing page
+  GET  /ts/x402/mandate      - signing draft JSON
+  POST /ts/x402/submit       - submit wallet signature + tx hash
+  GET  /ts/x402/status       - wallet sign session status
 """
 
 from __future__ import annotations
@@ -39,6 +44,12 @@ from trusted_surface_gate import (  # noqa: E402
   create_ts_session,
   get_trusted_surface_draft,
   get_ts_session_status,
+)
+from x402_wallet_sign_gate import (  # noqa: E402
+  create_x402_wallet_sign_session,
+  get_x402_wallet_sign_draft,
+  get_x402_wallet_sign_status,
+  submit_x402_wallet_signature,
 )
 
 _logger = setup_role_logger("trusted-surface", console=True)
@@ -283,12 +294,23 @@ CONFIRM_PAGE_HTML = """<!DOCTYPE html>
       fetch('/ts/mandate?ref=' + encodeURIComponent(ref))
         .then((r) => r.json())
         .then((data) => {
-          loading.hidden = true;
-          if (data.error) {
-            loading.hidden = false;
-            loading.textContent = data.message || data.error;
+          if (data.redirect && (data.error === 'wrong_portal' || data.wallet_sign_portal_url)) {
+            window.location.replace(data.redirect);
             return;
           }
+          if (data.error) {
+            return fetch('/ts/x402/mandate?ref=' + encodeURIComponent(ref))
+              .then((r2) => r2.json())
+              .then((x402) => {
+                if (!x402.error) {
+                  window.location.replace('/ts/x402/sign?ref=' + encodeURIComponent(ref));
+                  return;
+                }
+                loading.hidden = false;
+                loading.textContent = data.message || data.error;
+              });
+          }
+          loading.hidden = true;
           content.hidden = false;
           document.getElementById('product').textContent = data.display_name || data.item_name || data.item_id || '-';
           document.getElementById('price').textContent = '$' + Number(data.price_cap).toFixed(2) + ' ' + (data.payment_method || 'card').toUpperCase();
@@ -398,6 +420,213 @@ CONFIRM_PAGE_HTML = """<!DOCTYPE html>
 """
 
 
+X402_SIGN_PAGE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AP2 x402 - Sign with MetaMask</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #111; background: #f6f7fb; }
+    body { margin: 0; padding: 24px; display: flex; justify-content: center; }
+    .card {
+      background: #fff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      max-width: 520px; width: 100%; padding: 24px;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 8px; }
+    .subtitle { color: #555; margin-bottom: 20px; font-size: .95rem; }
+    dl { margin: 0 0 20px; }
+    dt { font-size: .75rem; text-transform: uppercase; color: #666; margin-top: 12px; }
+    dd { margin: 4px 0 0; font-size: 1rem; font-weight: 600; word-break: break-all; }
+    button {
+      width: 100%; margin-top: 12px; padding: 12px; border: 0; border-radius: 8px;
+      background: #0b57d0; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer;
+    }
+    button.secondary { background: #5f6368; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .error { color: #b3261e; margin-top: 12px; }
+    .success { color: #137333; margin-top: 12px; font-weight: 600; }
+    .mono { font-family: ui-monospace, monospace; font-size: .85rem; font-weight: 400; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Sign x402 payment</h1>
+    <p class="subtitle">Sign EIP-712 authorization and send SepoliaETH on Sepolia testnet via MetaMask.</p>
+    <div id="loading">Loading payment details...</div>
+    <div id="content" hidden>
+      <dl>
+        <dt>Amount</dt><dd id="amount">-</dd>
+        <dt>Payee</dt><dd id="payee" class="mono">-</dd>
+        <dt>Network</dt><dd id="network">Sepolia</dd>
+        <dt>Wallet</dt><dd id="wallet" class="mono">Not connected</dd>
+        <dt>Reference</dt><dd id="refLine" class="mono">-</dd>
+      </dl>
+      <button id="connectBtn" type="button" class="secondary">Connect MetaMask</button>
+      <button id="signBtn" type="button" disabled>Sign &amp; send SepoliaETH</button>
+      <div id="message"></div>
+    </div>
+  </div>
+  <script>
+    const SEPOLIA_CHAIN = '0xaa36a7';
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref') || '';
+    const loading = document.getElementById('loading');
+    const content = document.getElementById('content');
+    const message = document.getElementById('message');
+    const connectBtn = document.getElementById('connectBtn');
+    const signBtn = document.getElementById('signBtn');
+    let typedData = null;
+    let connectedAddress = null;
+
+    function setError(text) {
+      message.className = 'error';
+      message.textContent = text;
+    }
+    function setSuccess(text) {
+      message.className = 'success';
+      message.textContent = text;
+    }
+
+    function normalizeBytes32ForMetaMask(data) {
+      if (!data || !data.types || !data.message || !data.primaryType) return data;
+      const fieldTypes = data.types[data.primaryType] || [];
+      for (const field of fieldTypes) {
+        if (field.type !== 'bytes32') continue;
+        const v = data.message[field.name];
+        if (typeof v === 'string' && v.length === 64 && !v.startsWith('0x')) {
+          data.message[field.name] = '0x' + v;
+        }
+      }
+      return data;
+    }
+
+    async function ensureSepolia(provider) {
+      try {
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: SEPOLIA_CHAIN }],
+        });
+      } catch (err) {
+        if (err && err.code === 4902) {
+          await provider.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: SEPOLIA_CHAIN,
+              chainName: 'Sepolia',
+              nativeCurrency: { name: 'SepoliaETH', symbol: 'SepoliaETH', decimals: 18 },
+              rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
+              blockExplorerUrls: ['https://sepolia.etherscan.io'],
+            }],
+          });
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (!ref) {
+      loading.textContent = 'Missing ref query parameter.';
+    } else if (!window.ethereum) {
+      loading.textContent = 'MetaMask not detected. Install the extension and open this page in Chrome.';
+    } else {
+      fetch('/ts/x402/mandate?ref=' + encodeURIComponent(ref))
+        .then(r => r.json())
+        .then(data => {
+          loading.hidden = true;
+          if (data.error) {
+            loading.hidden = false;
+            loading.textContent = data.message || data.error;
+            return;
+          }
+          content.hidden = false;
+          typedData = normalizeBytes32ForMetaMask(JSON.parse(JSON.stringify(data.typed_data)));
+          const cents = Number(data.amount_cents || 0);
+          const token = data.token_symbol || 'SepoliaETH';
+          const network = data.network_name || 'Sepolia';
+          const ethAmount = data.eth_amount || '-';
+          const ethUsd = Number(data.eth_usd_rate || 0);
+          const usd = (cents / 100).toFixed(2);
+          const rateLine = ethUsd > 0 ? ` (~ $${usd} USD @ $${ethUsd.toLocaleString()}/ETH)` : '';
+          document.getElementById('amount').textContent = ethAmount + ' ' + token + rateLine;
+          document.getElementById('payee').textContent = data.payee_address || '-';
+          document.getElementById('network').textContent = network;
+          window.__paymentWei = data.payment_wei;
+          document.getElementById('refLine').textContent = ref;
+          if (data.status === 'signed') {
+            setSuccess('Already signed - return to chat.');
+            connectBtn.hidden = true;
+            signBtn.hidden = true;
+          }
+        })
+        .catch(err => {
+          loading.textContent = 'Failed to load: ' + err;
+        });
+    }
+
+    connectBtn.addEventListener('click', async () => {
+      message.textContent = '';
+      connectBtn.disabled = true;
+      try {
+        await ensureSepolia(window.ethereum);
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        connectedAddress = accounts[0];
+        document.getElementById('wallet').textContent = connectedAddress;
+        signBtn.disabled = !typedData;
+      } catch (err) {
+        setError(String(err.message || err));
+        connectBtn.disabled = false;
+      }
+    });
+
+    signBtn.addEventListener('click', async () => {
+      if (!typedData || !connectedAddress) return;
+      message.textContent = '';
+      signBtn.disabled = true;
+      try {
+        const payload = normalizeBytes32ForMetaMask(JSON.parse(JSON.stringify(typedData)));
+        payload.message.from = connectedAddress;
+        const signature = await window.ethereum.request({
+          method: 'eth_signTypedData_v4',
+          params: [connectedAddress, JSON.stringify(payload)],
+        });
+        const paymentWei = window.__paymentWei || payload.message.value;
+        const weiHex = '0x' + BigInt(String(paymentWei)).toString(16);
+        message.textContent = 'Confirm the SepoliaETH transfer in MetaMask...';
+        const txHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: connectedAddress,
+            to: payload.message.to,
+            value: weiHex,
+            chainId: SEPOLIA_CHAIN,
+          }],
+        });
+        const resp = await fetch('/ts/x402/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ref, from: connectedAddress, signature, tx_hash: txHash }),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+          setSuccess('Signed - return to chat. The agent will complete checkout.');
+          connectBtn.hidden = true;
+          signBtn.hidden = true;
+        } else {
+          setError(data.message || data.error || 'Submit failed');
+          signBtn.disabled = false;
+        }
+      } catch (err) {
+        setError(String(err.message || err));
+        signBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+"""
+
+
 def _read_json_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
   length = int(handler.headers.get("Content-Length", 0) or 0)
   if length <= 0:
@@ -484,6 +713,11 @@ class TrustedSurfaceHandler(BaseHTTPRequestHandler):
               "POST /ts/passkey/verify",
               "POST /ts/approve",
               "GET /ts/status?ref=",
+              "POST /ts/x402/sessions",
+              "GET /ts/x402/sign?ref=",
+              "GET /ts/x402/mandate?ref=",
+              "POST /ts/x402/submit",
+              "GET /ts/x402/status?ref=",
           ],
       })
       return
@@ -498,6 +732,18 @@ class TrustedSurfaceHandler(BaseHTTPRequestHandler):
         return
       draft = get_trusted_surface_draft(ref)
       if not draft:
+        x402_draft = get_x402_wallet_sign_draft(ref)
+        if x402_draft:
+          self._json_response(404, {
+              "error": "wrong_portal",
+              "message": (
+                  "This ref is an x402 MetaMask sign session, not a card mandate portal. "
+                  "Open the wallet sign page instead."
+              ),
+              "redirect": f"/ts/x402/sign?ref={ref}",
+              "wallet_sign_portal_url": f"/ts/x402/sign?ref={ref}",
+          })
+          return
         self._json_response(404, {
             "error": "not_found",
             "message": "Session not found or expired.",
@@ -524,6 +770,31 @@ class TrustedSurfaceHandler(BaseHTTPRequestHandler):
         self._json_response(400, {"error": "ref_required", "message": "ref query param required"})
         return
       self._json_response(200, get_ts_session_status(ref))
+      return
+
+    if parsed.path == "/ts/x402/sign":
+      self._html_response(X402_SIGN_PAGE_HTML)
+      return
+
+    if parsed.path == "/ts/x402/mandate":
+      if not ref:
+        self._json_response(400, {"error": "ref_required", "message": "ref query param required"})
+        return
+      draft = get_x402_wallet_sign_draft(ref)
+      if not draft:
+        self._json_response(404, {
+            "error": "not_found",
+            "message": "Wallet sign session not found or expired.",
+        })
+        return
+      self._json_response(200, draft)
+      return
+
+    if parsed.path == "/ts/x402/status":
+      if not ref:
+        self._json_response(400, {"error": "ref_required", "message": "ref query param required"})
+        return
+      self._json_response(200, get_x402_wallet_sign_status(ref))
       return
 
     self.send_response(404)
@@ -590,6 +861,41 @@ class TrustedSurfaceHandler(BaseHTTPRequestHandler):
       self._json_response(status, result)
       return
 
+    if parsed.path == "/ts/x402/sessions":
+      session_id = str(body.get("session_id", "")).strip()
+      chain_id = str(body.get("payment_mandate_chain_id", "")).strip()
+      if not session_id or not chain_id:
+        self._json_response(400, {
+            "error": "invalid_request",
+            "message": "session_id and payment_mandate_chain_id are required.",
+        })
+        return
+      result = create_x402_wallet_sign_session(
+          session_id,
+          chain_id,
+          payment_nonce=str(body.get("payment_nonce", "")).strip() or None,
+      )
+      status = 200 if "error" not in result else 400
+      self._json_response(status, result)
+      return
+
+    if parsed.path == "/ts/x402/submit":
+      ref = str(body.get("ref", "")).strip()
+      from_addr = str(body.get("from", body.get("from_address", ""))).strip()
+      signature = str(body.get("signature", "")).strip()
+      if not ref:
+        self._json_response(400, {"error": "ref_required", "message": "ref is required."})
+        return
+      result = submit_x402_wallet_signature(
+          ref,
+          from_addr,
+          signature,
+          tx_hash=str(body.get("tx_hash", "")).strip() or None,
+      )
+      status = 200 if result.get("status") == "ok" else 400
+      self._json_response(status, result)
+      return
+
     self.send_response(404)
     self._cors()
     self.end_headers()
@@ -611,4 +917,5 @@ if __name__ == "__main__":
     raise
   print(f"Trusted Surface (H5): http://localhost:{PORT}/")
   print(f"Confirm page example: http://localhost:{PORT}/ts/confirm?ref=<ref>")
+  print(f"x402 MetaMask sign: http://localhost:{PORT}/ts/x402/sign?ref=<ref>")
   server.serve_forever()

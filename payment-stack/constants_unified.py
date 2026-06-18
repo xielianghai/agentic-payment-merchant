@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 
-_UNIFIED_ROOT = Path(__file__).resolve().parent.parent
+_UNIFIED_ROOT = Path(__file__).resolve().parent
 DEFAULT_TEMP_DB = _UNIFIED_ROOT / ".temp-db"
 DEFAULT_LOGS = _UNIFIED_ROOT / ".logs"
 

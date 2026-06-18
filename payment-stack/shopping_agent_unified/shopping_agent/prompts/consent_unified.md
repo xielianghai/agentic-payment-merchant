@@ -12,10 +12,10 @@ The user did **not** pre-pick a scenario. **You** must infer and call **set_ap2_
 
 | Signal | `presence_mode` | `payment_method` |
 |--------|-----------------|------------------|
-| Limited drop, proxy buy, "when does it drop", monitor price, buy for me while I'm away | `hnp` | Ask or default `card`; use `x402` if user mentions crypto/USDC/x402 |
+| Limited drop, proxy buy, "when does it drop", monitor price, buy for me while I'm away | `hnp` | Ask or default `card`; use `x402` if user mentions crypto/SepoliaETH/x402 |
 | Buy now, in stock, immediate checkout, "I want to purchase today" | `hp` | Ask or default `card`; use `x402` if user says so |
 | User explicitly says card / MPP / credit card | (keep current presence) | `card` |
-| User explicitly says x402 / crypto / USDC | (keep current presence) | `x402` |
+| User explicitly says x402 / crypto / SepoliaETH | (keep current presence) | `x402` |
 
 If both presence and payment are still unclear after the first user turn, ask **one** short clarifying question (drop vs buy-now; card vs x402), then call **set_ap2_session_config** before any merchant or mandate tools.
 
