@@ -143,7 +143,7 @@ export function extractRouteFromProse(text: string): FlightRouteHint {
   return {};
 }
 
-/** Parse HEG MCP match label: ``SQ830 SIN→PVG 2026-06-21 09:30 (Y)``. */
+/** Parse HEG MCP match label: ``SQ830 SIN→PVG 2026-07-21 09:30 (Y)``. */
 export function parseFlightMatchName(name: string): Partial<FlightTableRow> {
   const m = name.match(
       /^(\S+)\s+([A-Z]{3})→([A-Z]{3})\s+(\S+(?:\s+\S+)?)\s+\(([A-Z])\)$/i,

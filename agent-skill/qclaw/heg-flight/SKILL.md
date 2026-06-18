@@ -113,7 +113,7 @@ Singapore Airlines mock (HEG). Currency: **USD**.
 | Field | Example | Notes |
 |-------|---------|-------|
 | Origin / destination | SIN → PVG | IATA codes |
-| Date | 2026-06-21 | use explicit future dates |
+| Date | 2026-07-21 | use explicit future dates |
 | Cabin | economy | economy / business |
 | Passengers | 1 adult | maps to `qty` |
 | Budget | USD 600 | **required for HNP** |
@@ -123,7 +123,7 @@ Singapore Airlines mock (HEG). Currency: **USD**.
 
 ```bash
 mcporter call ap2-merchant-adapter.search_inventory \
-  product_description="SIN to PVG economy June 21 2026 1 adult" \
+  product_description="SIN to PVG economy July 21 2026 1 adult" \
   constraint_price_cap=600
 ```
 
@@ -166,7 +166,7 @@ portal URL.**
 ```bash
 mcporter call ap2-buyer.create_trusted_surface_session \
   session_id=<OPEN_ID> price_cap=600 payment_method=card presence_mode=hnp \
-  item_id=rt_1_1_ff16fd912e_0 item_name="SQ836 SIN→PVG · 2026-06-21 · Economy"
+  item_id=rt_1_1_ff16fd912e_0 item_name="SQ830 SIN→PVG · 2026-07-21 · Economy"
 ```
 
 **HP flight** (after `create_checkout` — pass **`amount_cents`** from checkout total):
@@ -174,7 +174,7 @@ mcporter call ap2-buyer.create_trusted_surface_session \
 ```bash
 mcporter call ap2-buyer.create_trusted_surface_session \
   session_id=<OPEN_ID> amount_cents=50630 price_cap=506.30 payment_method=x402 presence_mode=hp \
-  item_id=rt_1_1_ff16fd912e_0 item_name="SQ836 SIN→PVG · 2026-06-21 · Economy"
+  item_id=rt_1_1_ff16fd912e_0 item_name="SQ830 SIN→PVG · 2026-07-21 · Economy"
 ```
 
 1. Post **`user_message`** verbatim. Remember exact **`ref`**.
@@ -253,7 +253,7 @@ been used`:
 ```bash
 mcporter call ap2-buyer.register_price_monitor_tool \
   session_id=<OPEN_ID> item_id=ITEM_ID price_cap=600 interval_minutes=5 \
-  item_name="SQ836 SIN→PVG · 2026-06-21 · Economy" merchant=flight
+  item_name="SQ830 SIN→PVG · 2026-07-21 · Economy" merchant=flight
 ```
 
 6. Poll `get_price_monitor_status_tool` until `purchased`, `stopped`, or `error`. Backend scheduler on **:8105** completes purchase automatically when fare ≤ budget and seats exist.

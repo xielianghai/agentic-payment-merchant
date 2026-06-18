@@ -17,8 +17,6 @@ Lifecycle:
   ap2.unified.web              Start web demo (background)
   ap2.unified.web.foreground   Start web demo (foreground, logs in terminal)
   ap2.unified.web.stop         Stop web demo
-  ap2.unified.openclaw         Start openclaw MCP backend
-  ap2.unified.openclaw.stop    Stop openclaw backend
   ap2.unified.smoke            Health check (web demo must be running)
 
 Prerequisites:
@@ -44,12 +42,6 @@ run_op() {
       ;;
     ap2.unified.web.stop)
       exec "$SCRIPT_DIR/stop.sh"
-      ;;
-    ap2.unified.openclaw)
-      exec "$SCRIPT_DIR/openclaw/start_ap2_backend.sh"
-      ;;
-    ap2.unified.openclaw.stop)
-      exec "$SCRIPT_DIR/openclaw/stop_ap2_backend.sh"
       ;;
     ap2.unified.smoke)
       exec "$SCRIPT_DIR/scripts/smoke_check.sh"

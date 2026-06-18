@@ -48,7 +48,7 @@ def _parse_search_query(query: str) -> dict[str, Any]:
     lower = text.lower()
     from_city = "SIN"
     to_city = "PVG"
-    from_date = "2026-06-21"
+    from_date = "2026-07-21"
     cabin = "Y"
     adult_num = 1
 

@@ -151,20 +151,20 @@ FLIGHT_PROFILE = MerchantProfile(
         "Currency: **USD**. Use IATA codes + date in search; no trigger server."
     ),
     default_starter=(
-        "Find Singapore Airlines flights from SIN to PVG economy on June 10 "
+        "Find Singapore Airlines flights from SIN to PVG economy on July 21 "
         "for 1 adult."
     ),
     hnp_starter=(
-        "Book Singapore Airlines SIN to PVG economy June 10 for 1 adult — "
+        "Book Singapore Airlines SIN to PVG economy July 21 for 1 adult — "
         "budget USD 600, buy for me when price is acceptable."
     ),
     hp_starter=(
-        "Buy Singapore Airlines SIN to PVG economy June 10 for 1 adult now with card."
+        "Buy Singapore Airlines SIN to PVG economy July 21 for 1 adult now with card."
     ),
     trigger_port=None,
     skip_trigger=True,
-    example_item_name="SQ836 SIN to PVG 2026-06-10",
-    example_total_cents=50630,
+    example_item_name="SQ830 SIN to PVG 2026-07-21",
+    example_total_cents=130,
     oos_section=_FLIGHT_OOS_SECTION,
     hnp_oos_hint=(
         "HNP flights: user sets a **budget / price_cap**; monitoring buys when "
@@ -200,7 +200,11 @@ MERCHANT_NEUTRAL_PREAMBLE = (
     "shoe messaging — flights are available when seats exist.\n\n"
     "Follow **merchant_instruction** from get_ap2_session_config for currency, "
     "availability rules, and examples. If unsure which merchant is active, call "
-    "**get_ap2_session_config** before answering what you can do."
+    "**get_ap2_session_config** before answering what you can do.\n\n"
+    "User-visible responses must not narrate internal reasoning or tool plans. "
+    "Do not say things like \"I need to call...\", \"let me emit...\", or "
+    "\"now I need to...\". Just provide the customer-facing result and put any "
+    "required JSON artifact as the final block."
 )
 
 

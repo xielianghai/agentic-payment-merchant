@@ -15,7 +15,7 @@ metadata:
   }
 ---
 
-# HEG Flight Checkout (OpenClaw + UCP+AP2)
+# HEG Flight Checkout (OpenClaw/ClawHub + UCP+AP2)
 
 **Language (mandatory):** Reply in **English** — summaries, fare tables, errors, portal/monitor prompts. The user may write Chinese (e.g. 我要买机票); **still respond in English** unless they explicitly ask for Chinese.
 

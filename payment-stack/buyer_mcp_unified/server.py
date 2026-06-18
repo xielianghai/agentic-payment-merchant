@@ -308,7 +308,7 @@ def register_price_monitor_tool(
   """Arm HNP price monitoring; backend scheduler on :8105 drives ticks and purchase.
 
   After signing open mandates, call once with session_id, item_id, price_cap, and
-  the user's chosen interval_minutes. Do not start OpenClaw cron or manual tick
+  the user's chosen interval_minutes. Do not start manual tick
   scripts — the scheduler checks prices and completes purchase automatically.
   """
   return register_price_monitor(

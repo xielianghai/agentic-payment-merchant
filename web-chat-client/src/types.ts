@@ -121,7 +121,7 @@ export interface ErrorArtifact {
 export interface MonitoringStatus {
   type: "monitoring";
   item_id: string;
-  /** Human-readable label (e.g. SQ830 SIN→PVG 2026-06-10). */
+  /** Human-readable label (e.g. SQ830 SIN→PVG 2026-07-21). */
   item_name?: string;
   price_cap: number;
   qty?: number;

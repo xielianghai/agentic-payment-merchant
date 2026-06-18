@@ -157,7 +157,7 @@ def _seed_heg_flight_state(item_id: str, item: dict[str, Any]) -> None:
         "routing_key": routing_key,
         "from_city": search_body.get("fromCity", "SIN"),
         "to_city": search_body.get("toCity", "PVG"),
-        "from_date": search_body.get("fromDate", "2026-06-21"),
+        "from_date": search_body.get("fromDate", "2026-07-21"),
         "cabin_class": search_body.get("cabinClass", "Y"),
         "adult_num": search_body.get("adultNum", 1),
         "price": item.get("price", 0),

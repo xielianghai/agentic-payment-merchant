@@ -110,7 +110,7 @@ async def main() -> None:
   mcp = _load_adapter_mcp()
   ctx = _ToolContext()
   search_query = os.environ.get(
-      "E2E_FLIGHT_SEARCH", "SIN to PVG economy June 21 2026 1 adult"
+      "E2E_FLIGHT_SEARCH", "SIN to PVG economy July 21 2026 1 adult"
   )
 
   search = _step(

@@ -1,4 +1,4 @@
-"""HNP price-monitor state (backend scheduler drives ticks; no OpenClaw cron)."""
+"""HNP price-monitor state (backend scheduler drives ticks)."""
 
 from __future__ import annotations
 
@@ -277,11 +277,11 @@ def register_price_monitor(
       ),
       "message": (
           "Monitor armed. Backend scheduler (:8105) drives ticks and purchase; "
-          "do not start OpenClaw cron or browser polling loops."
+          "do not start manual tick scripts or browser polling loops."
       ),
       "agent_instruction": (
-          "Post feishu_user_message only. Do NOT run monitor_cron.sh, /loop, or "
-          "manual tick scripts. Backend scheduler handles monitoring and purchase."
+          "Post feishu_user_message only. Do NOT run manual tick scripts. "
+          "Backend scheduler handles monitoring and purchase."
       ),
       "max_ticks": cap,
   }

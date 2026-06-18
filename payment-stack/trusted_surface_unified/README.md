@@ -6,8 +6,8 @@ Standalone AP2 **Trusted Surface** service for the unified demo. Separate from *
 
 Started automatically by:
 
-- `./openclaw/start_ap2_backend.sh` (openclaw / mcporter path)
 - `./start.sh` (web UI path)
+- `agent-skill/qclaw/heg-flight/scripts/start-backend.sh` (QClaw buyer MCP path)
 
 Default URL: **http://localhost:8104/**
 
@@ -52,7 +52,7 @@ Legacy OTP tools (`register_trusted_surface_approval`, `verify_payment_otp`) rem
 | `TS_RP_NAME` | `AP2 Trusted Surface` | WebAuthn RP display name |
 | `TS_ORIGIN` | `http://localhost:8104` | Expected WebAuthn origin |
 | `TS_PIN` | (empty) | If set, H5 page shows PIN fallback on confirm |
-| `AP2_TS_H5` | `1` | H5 path enabled (openclaw start script) |
+| `AP2_TS_H5` | `1` | H5 path enabled |
 | `AP2_REQUIRE_OTP` | `0` | Legacy Feishu OTP when `1` |
 | `TEMP_DB_DIR` | `.temp-db/` | Stores `ts_sessions.json`, `ts_passkeys.json`, approvals |
 
@@ -72,7 +72,7 @@ You do **not** need a full checkout or real payment to verify passkey authorizat
 
 ### Prerequisites
 
-1. TS server is running on port **8104** (via `./start.sh`, `./openclaw/start_ap2_backend.sh`, or `python server.py` in this directory).
+1. TS server is running on port **8104** (via `./start.sh` or `python server.py` in this directory).
 2. Browser supports WebAuthn (Chrome / Safari / Edge on macOS or Windows).
 3. Open links at **`http://localhost:8104`**, not `127.0.0.1`.
 

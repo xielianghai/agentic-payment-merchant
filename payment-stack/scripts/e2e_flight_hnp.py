@@ -130,7 +130,7 @@ def main() -> None:
     raise SystemExit(f"scheduler unhealthy: {health}")
 
   search_query = os.environ.get(
-      "E2E_FLIGHT_SEARCH", "SIN to PVG economy June 21 2026 1 adult"
+      "E2E_FLIGHT_SEARCH", "SIN to PVG economy July 21 2026 1 adult"
   )
   budget = float(os.environ.get("E2E_FLIGHT_HNP_BUDGET", "600"))
 

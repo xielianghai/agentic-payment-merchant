@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Install / refresh heg-flight skill into QClaw (~/.qclaw/skills/heg-flight).
-# Similar to payment-stack/scripts/reinstall_ap2_skill.sh for ap2-checkout.
 set -eu
 
 AGENT_SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -135,7 +134,7 @@ echo "       cd $MERCHANT_HOME/../heg_flight_mock && ./scripts/start-backend.sh"
 echo "       cd $MERCHANT_HOME && ./scripts/start-all.sh"
 echo "       $QCLAW_SKILL/scripts/start-backend.sh"
 echo "  3. Onboard HEG → http://127.0.0.1:5273"
-echo "  4. Start a NEW chat and try: Book SIN to PVG economy June 21 2026 for 1 adult"
+echo "  4. Start a NEW chat and try: Book SIN to PVG economy July 21 2026 for 1 adult"
 echo ""
 echo "Skill path:       $QCLAW_SKILL/SKILL.md"
 echo "MCPORTER_CONFIG:  $MCPORTER_PATH"

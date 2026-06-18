@@ -25,7 +25,7 @@ If the user message supplies values (e.g. in a check_product_now payload), prefe
 ## Artifacts
 Emit as JSON in your response text at phase transitions. The web client requires `item_id` and `price_cap` at the top level.
 
-- **monitoring**: `{"type": "monitoring", "item_id": "...", "item_name": "SQ830 SIN→PVG 2026-06-10 (Y)", "price_cap": N, "qty": N, "current_price": N, "meets_constraints": false, "available": false, "open_checkout_mandate": "...", "open_payment_mandate": "...", "message": "..."}`
+- **monitoring**: `{"type": "monitoring", "item_id": "...", "item_name": "SQ830 SIN→PVG 2026-07-21 (Y)", "price_cap": N, "qty": N, "current_price": N, "meets_constraints": false, "available": false, "open_checkout_mandate": "...", "open_payment_mandate": "...", "message": "..."}`
   - `item_id`: the item id from `line_items[0].acceptable_items[0].id` in the check_constraints_against_mandate result
   - `item_name`: human-readable label from `line_items[0].acceptable_items[0].title` or the product name from check_product / mandate_request (required for flight merchants)
   - `price_cap`: from the check_constraints_against_mandate result

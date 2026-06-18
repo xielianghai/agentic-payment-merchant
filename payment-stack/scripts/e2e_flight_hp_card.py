@@ -101,7 +101,7 @@ async def main() -> None:
   # drift into a past month (which the parser would bump to next year, where the
   # HEG mock has no inventory). Override via E2E_FLIGHT_SEARCH if needed.
   search_query = os.environ.get(
-      "E2E_FLIGHT_SEARCH", "SIN to PVG economy June 21 2026 1 adult"
+      "E2E_FLIGHT_SEARCH", "SIN to PVG economy July 21 2026 1 adult"
   )
 
   search = _step(

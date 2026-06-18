@@ -10,7 +10,7 @@
 | `adapter/` | Adapter（UCP 商户门面 + 动态路由 + MCP 工具） | 8200 |
 | `payment-stack/` | AP2 支付栈（Shopping Agent、CP、MPP、TS、监控） | 8090–8105 |
 | `web-chat-client/` | Web 对话客户端 | 5183 |
-| `agent-skill/` | openClaw 智能体技能 | — |
+| `agent-skill/` | OpenClaw / QClaw / ClawHub `heg-flight` 智能体技能 | — |
 
 外部依赖：**HEG Flight**（`/Users/ouyang/AI-coding/payment/heg_flight_mock`，端口 9000）
 

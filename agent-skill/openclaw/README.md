@@ -1,57 +1,38 @@
-# AP2 openclaw integration
+# HEG Flight OpenClaw Skill
 
-Run the unified AP2 demo **without** the ADK shopping agent or web UI. openclaw drives the flow via **mcporter** + the **ap2-checkout** skill.
+OpenClaw skill bundle for **Singapore Airlines / HEG Flight** checkout through
+Agentic Payment Merchant.
 
-Operation IDs: [../references/demo-ops.md](../references/demo-ops.md).
+This is the OpenClaw counterpart of `agent-skill/qclaw/heg-flight/`. It uses the
+same MCP servers and business flow:
 
-**ClawHub bundle:** [`../clawhub/ap2-checkout/`](../clawhub/ap2-checkout/).
+- `ap2-merchant-adapter` for flight catalog, cart, checkout, and completion
+- `ap2-buyer` for session config, mandates, Trusted Surface, and monitor
+- `ap2-cp` for payment credentials
+- `ap2-mpp` for settlement
 
-## Quick start
+## Local Use
 
-1. Stop web demo if active: **`ap2.unified.web.stop`**
-2. **`ap2.unified.openclaw`**
-3. For **flight booking**, also run **`ap2.prereq.heg`** (HEG API on `:9000`) — the openclaw backend does not start HEG.
-4. Point `MCPORTER_CONFIG` at this scenario’s `openclaw/mcporter.json`
-5. Enable `mcporter` and `ap2-checkout` in `~/.openclaw/openclaw.json` (skill symlink under `~/.openclaw/plugin-skills/ap2-checkout`)
-6. Restart openclaw gateway if it was already running
+From the repository root:
 
-Stop: **`ap2.unified.openclaw.stop`**
+```bash
+export MERCHANT_HOME="$PWD"
+export MCPORTER_CONFIG="$PWD/agent-skill/openclaw/mcporter.json"
+```
 
-## Ports
+Start prerequisites:
 
-| Port | Service |
-|------|---------|
-| 8091 | Merchant trigger (price-drop) |
-| 8092 | CP trigger |
-| 8093 | MPP card trigger |
-| 8094 | x402 PSP trigger |
-| 8100 | Buyer MCP (HTTP) |
-| 8101 | Merchant MCP (HTTP) |
-| 8102 | Credentials provider MCP (HTTP) |
-| 8103 | MPP MCP |
-| 8104 | H5 Trusted Surface (standalone role) |
-| 8105 | HNP monitor scheduler (backend ticks + purchase) |
+```bash
+cd "$MERCHANT_HOME/../heg_flight_mock" && ./scripts/start-backend.sh
+cd "$MERCHANT_HOME" && ./scripts/start-all.sh
+MERCHANT_HOME="$MERCHANT_HOME" "$MERCHANT_HOME/agent-skill/openclaw/scripts/start-backend.sh"
+```
 
-Do not run **`ap2.unified.openclaw`** alongside **`ap2.unified.web`** — both use 8091–8094 and 8104–8105.
+Then enable `mcporter` and `heg-flight` in your OpenClaw config and restart the
+gateway.
 
-## Feishu / Trusted Surface (H5 portal)
+## Notes
 
-See skill `SKILL.md` and workspace `AGENTS.md`. Default: **H5 Trusted Surface** on port **8104** (`create_trusted_surface_session` → user opens `portal_url` → poll `get_trusted_surface_status`). Legacy OTP when `AP2_REQUIRE_OTP=1`.
-
-Details: [roles/trusted_surface_unified/README.md](../roles/trusted_surface_unified/README.md).
-
-## HNP price monitoring
-
-After `register_price_monitor_tool`, the **monitor scheduler** on port **8105** drives ticks and completes purchase automatically. Do not use `monitor_cron.sh`.
-
-Details: [roles/monitor_scheduler_unified/README.md](../roles/monitor_scheduler_unified/README.md).
-
-## Bot verification (before Feishu / WeChat testing)
-
-1. **`ap2.unified.openclaw.stop`** then **`ap2.unified.openclaw`**
-2. Flights: **`ap2.prereq.heg`**
-3. **`export MCPORTER_CONFIG=.../openclaw/mcporter.json`**
-4. **`./scripts/smoke_openclaw_mcp.sh`**
-5. Optional: **`uv run python scripts/smoke_hnp_monitor_scheduler.py`** and **`scripts/e2e_flight_hnp.py`**
-
-Full checklist and bot prompts: **[openclaw/SKILL.md § Bot verification playbook](SKILL.md#bot-verification-playbook-operator--feishuwechat)**.
+`mcporter.json` in this folder is a repository-local development config. If you
+copy this skill to another folder, regenerate `mcporter.json` with absolute
+paths or update the relative paths manually.

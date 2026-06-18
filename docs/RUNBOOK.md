@@ -50,8 +50,8 @@ cd payment-stack && ./start.sh
 2. **验证注册表**：`curl http://127.0.0.1:9100/api/v1/registry/merchants`
 3. **UCP 发现**：`curl http://127.0.0.1:8200/.well-known/ucp`
 4. **购票对话**：打开 http://127.0.0.1:5183
-   - HP + Card：`Buy Singapore Airlines SIN to PVG economy June 10 for 1 adult now with card.`
-   - HNP + Card：`Book SIN to PVG economy June 10 for 1 adult, budget USD 600.`
+   - HP + Card：`Buy Singapore Airlines SIN to PVG economy July 21 for 1 adult now with card.`
+   - HNP + Card：`Book SIN to PVG economy July 21 for 1 adult, budget USD 600.`
 5. **核验订单**：HEG 管理台 http://127.0.0.1:5173 或 HEG REST API
 
 ## 协议栈
@@ -75,12 +75,12 @@ cd payment-stack && ./start.sh
 | Monitor Scheduler | 8105 |
 | Web Chat Client | 5183 |
 
-## openClaw 技能
+## OpenClaw / QClaw heg-flight 技能
 
 ```bash
-# 见 agent-skill/openclaw/README.md
-export AP2_HOME=$PWD/payment-stack
-export MCPORTER_CONFIG=$PWD/agent-skill/openclaw/mcporter.json
+# QClaw 安装；OpenClaw 本地使用见 agent-skill/README.md
+cd agent-skill
+./install-qclaw-skill.sh
 ```
 
 ## 停止

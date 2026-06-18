@@ -1,6 +1,6 @@
 # Monitor scheduler (HNP backend)
 
-Standalone HTTP service on port **8105** that drives **Human Not Present (HNP)** price monitoring without OpenClaw cron or browser `setInterval` loops.
+Standalone HTTP service on port **8105** that drives **Human Not Present (HNP)** price monitoring without browser `setInterval` loops.
 
 ## Role
 
@@ -9,7 +9,7 @@ After the user signs open mandates, a monitor is armed in shared session storage
 1. Polls active monitors on a background thread (default every 5s).
 2. Calls merchant `check_product` and buyer `check_constraints` when a tick is due.
 3. When constraints are met, runs a **deterministic in-process purchase chain** (no LLM).
-4. Sends optional OpenClaw wake notifications on ticks, purchase complete, or stop.
+4. Sends optional agent wake notifications on ticks, purchase complete, or stop.
 
 ## Endpoints
 
@@ -21,7 +21,7 @@ After the user signs open mandates, a monitor is armed in shared session storage
 
 ## Start
 
-Started automatically by **`ap2.unified.web`** (`start.sh`) and **`ap2.unified.openclaw`** (`openclaw/start_ap2_backend.sh`).
+Started automatically by the web stack (`start.sh`). QClaw `heg-flight` uses the same scheduler when the payment stack is running.
 
 Manual:
 
@@ -36,16 +36,16 @@ uv run --package ap2-samples python server.py
 |----------|---------|-------------|
 | `UNIFIED_MONITOR_SCHEDULER_PORT` | `8105` | HTTP port |
 | `MONITOR_SCHEDULER_POLL_SECONDS` | `5` | Scheduler loop interval |
-| `AP2_OPENCLAW_HOOK_ENABLED` | `1` | Send tick/purchase notifications via OpenClaw hook |
+| `AP2_OPENCLAW_HOOK_ENABLED` | `1` | Send tick/purchase notifications via agent hook |
 | `TEMP_DB_DIR` | `.temp-db` | Shared session files |
 
-## openclaw flow
+## Agent flow
 
 1. Agent calls `register_price_monitor_tool` (buyer MCP) after mandate signing.
 2. Backend scheduler ticks and purchases automatically.
 3. Agent posts the tool's `feishu_user_message`; optional status poll via `get_price_monitor_status_tool`.
 
-Do **not** run `scripts/monitor_cron.sh` or `scripts/monitor_price_tick.sh` (deprecated).
+Do **not** run manual tick scripts; backend scheduler handles monitoring.
 
 ## Web flow
 
