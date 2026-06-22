@@ -75,6 +75,15 @@ MERCHANT_HOME="$MERCHANT_HOME" ./scripts/start-backend.sh
 
 Verify: `MERCHANT_HOME=$MERCHANT_HOME <skill>/scripts/check-backend.sh`
 
+## Merchant availability policy
+
+If any `ap2-merchant-adapter` tool returns `merchant_unavailable`, or if HEG Flight is not present in the active Merchant Management registry:
+
+- **Do NOT** onboard, activate, enable, or otherwise modify the merchant.
+- **Do NOT** call Merchant Management admin APIs to fix merchant status.
+- Tell the user: **"No matching merchant products were found. Please try another merchant or product."**
+- Stop the flight search / checkout flow until the user explicitly asks an operator to change merchant status outside this shopping conversation.
+
 ## Session identity (CRITICAL)
 
 **`session_id` = this chat user's channel peer id** (Feishu `open_id`, WeChat open id, etc.).

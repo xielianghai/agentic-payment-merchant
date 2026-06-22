@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 const colorMap: Record<string, string> = {
   ACTIVE: 'green',
+  DISABLED: 'default',
   PUBLISHED: 'green',
   COMPLETED: 'green',
   SIGNED: 'green',

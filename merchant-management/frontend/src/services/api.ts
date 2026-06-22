@@ -201,6 +201,8 @@ export const reviewKyb = (id: string, approved: boolean, rejectReason?: string) 
 export const signContract = (id: string, signedBy: string) =>
   unwrap<Contract>(api.post(`/admin/merchants/${id}/contract/sign`, { signed_by: signedBy }))
 export const onboardMerchant = (id: string) => unwrap<Merchant>(api.post(`/admin/merchants/${id}/onboard`))
+export const disableMerchant = (id: string) => unwrap<Merchant>(api.post(`/admin/merchants/${id}/disable`))
+export const enableMerchant = (id: string) => unwrap<Merchant>(api.post(`/admin/merchants/${id}/enable`))
 export const getCapabilities = (id: string) =>
   unwrap<Capability[]>(api.get(`/admin/merchants/${id}/capabilities`))
 export const createCapability = (id: string, payload: Partial<Capability>) =>

@@ -166,6 +166,24 @@ async def onboard_merchant(merchant_id: str, session: AsyncSession = Depends(get
     return {"code": "ok", "data": merchant, "message": "Merchant onboarded successfully"}
 
 
+@router.post("/merchants/{merchant_id}/disable")
+async def disable_merchant(merchant_id: str, session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    try:
+        merchant = await merchant_svc.disable_merchant(session, merchant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"code": "ok", "data": merchant, "message": "Merchant disabled successfully"}
+
+
+@router.post("/merchants/{merchant_id}/enable")
+async def enable_merchant(merchant_id: str, session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    try:
+        merchant = await merchant_svc.enable_merchant(session, merchant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"code": "ok", "data": merchant, "message": "Merchant enabled successfully"}
+
+
 @router.get("/merchants/{merchant_id}/capabilities")
 async def get_capabilities(merchant_id: str, session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
     return {"code": "ok", "data": await cap_svc.list_capabilities(session, merchant_id)}

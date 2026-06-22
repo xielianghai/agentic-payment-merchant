@@ -149,6 +149,10 @@ async def onboard_merchant(session: AsyncSession, merchant_id: str) -> dict[str,
         raise ValueError("Merchant not found")
     if merchant["status"] == "ACTIVE":
         return merchant
+    if merchant["status"] == "DISABLED":
+        raise ValueError("Disabled merchant must be enabled before onboarding")
+    if merchant["status"] != "PENDING":
+        raise ValueError("Only PENDING merchants can be onboarded")
 
     kyb = await get_kyb(session, merchant_id)
     contract = await get_contract(session, merchant_id)

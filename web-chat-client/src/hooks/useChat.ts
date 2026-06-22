@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {A2AClient} from '../a2aClient';
 import {isAutoMode, isFixedMode, type Ap2ModeConfig} from '../components/ModePicker';
 import {AGENT_URL, inferMerchantFromText, isFlightMerchant, MERCHANT_TRIGGER_URL, TS_BASE_URL, type MerchantKey} from '../config';
+import {FLIGHT_MERCHANT_UNAVAILABLE_MESSAGE} from '../services/registry';
 import type {ChatMessage, ImmediateCheckoutRequest, InventoryMatch, InventoryOptionsArtifact, MandateApprovalData, MandateChainsFetched, MandateEntry, MandateRequest, MandatesSigned, MonitoringStatus, OutgoingDataPayload, Part, ToolCallArtifact} from '../types';
 import {isFunctionResponsePart, isToolCallArtifact} from '../types';
 import {deriveMandateEntries} from '../utils/mandateEntries';
@@ -177,6 +178,7 @@ export function useChat(
     ap2Config: Ap2ModeConfig | null,
     merchantKey: MerchantKey | null,
     onMerchantSelected?: (merchant: MerchantKey) => void,
+    flightMerchantAvailable = true,
 ) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const configSentRef = useRef(false);
@@ -993,6 +995,13 @@ export function useChat(
         sendToAgent,
       ]);
 
+  function isFlightRequestBlocked(text: string): boolean {
+    if (flightMerchantAvailable) return false;
+    const inferred = inferMerchantFromText(text);
+    const effective = merchantKey ?? inferred;
+    return effective === 'flight' || inferred === 'flight';
+  }
+
   /**
    * Resolve the merchant for an outgoing user message. When none is selected
    * yet, infer it from the text; if clear, set it in app state and return it so
@@ -1012,6 +1021,11 @@ export function useChat(
     const text = raw || opts?.fallbackIfEmpty;
     if (!text) return;
     setInput('');
+    if (isFlightRequestBlocked(text)) {
+      addMessage({role: 'user', text});
+      addMessage({role: 'system', text: FLIGHT_MERCHANT_UNAVAILABLE_MESSAGE});
+      return;
+    }
     const merchant = resolveMerchantForSend(text);
     const augmented = augmentUserMessageForAgent(text, messages);
     addMessage({role: 'user', text});
@@ -1021,6 +1035,11 @@ export function useChat(
   /** Send a clickable action_choices option as a normal user turn. */
   async function sendChoice(text: string) {
     if (loading || !text.trim()) return;
+    if (isFlightRequestBlocked(text)) {
+      addMessage({role: 'user', text});
+      addMessage({role: 'system', text: FLIGHT_MERCHANT_UNAVAILABLE_MESSAGE});
+      return;
+    }
     const merchant = resolveMerchantForSend(text);
     const augmented = augmentUserMessageForAgent(text, messages);
     addMessage({role: 'user', text});

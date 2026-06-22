@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any
 import re
 import secrets
@@ -9,12 +10,17 @@ from config import get_settings
 from services.audit_service import log_operation
 from services.common import dumps, loads, rows, one
 
+STATUS_PENDING = "PENDING"
+STATUS_ACTIVE = "ACTIVE"
+STATUS_DISABLED = "DISABLED"
+
 
 async def dashboard_stats(session: AsyncSession) -> dict[str, Any]:
     stats = {}
     for key, sql in {
         "merchants_total": "SELECT COUNT(*) FROM merchants",
         "merchants_active": "SELECT COUNT(*) FROM merchants WHERE status='ACTIVE'",
+        "merchants_disabled": "SELECT COUNT(*) FROM merchants WHERE status='DISABLED'",
         "onboarding_pending": "SELECT COUNT(*) FROM onboarding_tasks WHERE status='PENDING'",
         "capabilities_total": "SELECT COUNT(*) FROM merchant_capabilities",
         "kyb_pending": "SELECT COUNT(*) FROM merchant_kyb_reviews WHERE status='PENDING'",
@@ -139,6 +145,64 @@ async def create_merchant(session: AsyncSession, payload: dict[str, Any]) -> dic
     return await get_merchant(session, merchant_id) or {}
 
 
+async def disable_merchant(session: AsyncSession, merchant_id: str) -> dict[str, Any]:
+    merchant = await get_merchant(session, merchant_id)
+    if not merchant:
+        raise ValueError("Merchant not found")
+    if merchant["status"] == STATUS_DISABLED:
+        return merchant
+    if merchant["status"] != STATUS_ACTIVE:
+        raise ValueError("Only ACTIVE merchants can be disabled")
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    await session.execute(
+        text(
+            """
+            UPDATE merchants
+            SET status=:status, updated_at=:now
+            WHERE id=:id
+            """
+        ),
+        {"id": merchant_id, "status": STATUS_DISABLED, "now": now},
+    )
+    await log_operation(
+        session,
+        "merchant.disabled",
+        merchant_id=merchant_id,
+        detail={"name": merchant["name"], "previous_status": merchant["status"]},
+    )
+    return await get_merchant(session, merchant_id) or {}
+
+
+async def enable_merchant(session: AsyncSession, merchant_id: str) -> dict[str, Any]:
+    merchant = await get_merchant(session, merchant_id)
+    if not merchant:
+        raise ValueError("Merchant not found")
+    if merchant["status"] == STATUS_ACTIVE:
+        return merchant
+    if merchant["status"] != STATUS_DISABLED:
+        raise ValueError("Only DISABLED merchants can be enabled")
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    await session.execute(
+        text(
+            """
+            UPDATE merchants
+            SET status=:status, updated_at=:now
+            WHERE id=:id
+            """
+        ),
+        {"id": merchant_id, "status": STATUS_ACTIVE, "now": now},
+    )
+    await log_operation(
+        session,
+        "merchant.enabled",
+        merchant_id=merchant_id,
+        detail={"name": merchant["name"], "previous_status": merchant["status"]},
+    )
+    return await get_merchant(session, merchant_id) or {}
+
+
 async def delete_merchant(session: AsyncSession, merchant_id: str) -> None:
     merchant = await get_merchant(session, merchant_id)
     if not merchant:
@@ -182,7 +246,7 @@ async def registry_merchants(session: AsyncSession) -> list[dict[str, Any]]:
     from services.capability_service import list_capabilities
 
     settings = get_settings()
-    active = await list_merchants(session, status="ACTIVE")
+    active = await list_merchants(session, status=STATUS_ACTIVE)
     registry = []
     for row in active:
         caps = await list_capabilities(session, row["id"])

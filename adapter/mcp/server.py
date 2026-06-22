@@ -26,7 +26,10 @@ for _p in (_ADAPTER_ROOT, _AP2_SDK_ROOT):
 
 from config import get_settings  # noqa: E402
 from services.heg_client import _routing_key_from_item_id  # noqa: E402
-from services.registry import fetch_active_merchants, load_active_merchant_selection  # noqa: E402
+from services.registry import (  # noqa: E402
+    MerchantUnavailableError,
+    resolve_active_merchant_id,
+)
 
 mcp = FastMCP("Agentic Payment Merchant Adapter")
 
@@ -167,15 +170,16 @@ def _seed_heg_flight_state(item_id: str, item: dict[str, Any]) -> None:
     path.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
 
+async def _guard_commerce(merchant_id: str | None = None) -> str:
+    try:
+        return await resolve_active_merchant_id(merchant_id)
+    except MerchantUnavailableError as exc:
+        _logger.warning("merchant unavailable: %s", exc.message)
+        raise
+
+
 async def get_active_merchant_key() -> str:
-    temp_db = os.environ.get("TEMP_DB_DIR", _settings().temp_db_dir)
-    selected = load_active_merchant_selection(temp_db)
-    if selected:
-        return selected
-    merchants = await fetch_active_merchants()
-    if merchants:
-        return str(merchants[0].get("merchant_id") or "heg_flight")
-    return "heg_flight"
+    return await resolve_active_merchant_id()
 
 
 @mcp.tool()
@@ -184,7 +188,10 @@ async def search_inventory(
     constraint_price_cap: float | None = None,
 ) -> dict[str, Any]:
     """Search flights via UCP catalog/search (translated to HEG backend)."""
-    merchant = await get_active_merchant_key()
+    try:
+        merchant = await _guard_commerce()
+    except MerchantUnavailableError as exc:
+        return exc.as_dict()
     _logger.info("search_inventory merchant=%s query=%s", merchant, product_description)
     result = await _ucp_post(
         "/catalog/search",
@@ -213,6 +220,11 @@ async def check_product(
     constraint_price_cap: float | None = None,
 ) -> dict[str, Any]:
     """Check flight availability via verify_price using cached catalog item."""
+    try:
+        await _guard_commerce()
+    except MerchantUnavailableError as exc:
+        return exc.as_dict()
+
     from services.ucp_service import UcpService
 
     svc = UcpService()
@@ -271,6 +283,11 @@ async def check_product(
 @mcp.tool()
 async def assemble_cart(item_id: str, qty: int) -> dict[str, Any]:
     """Create UCP cart synced with HEG MCP presale (single issueId for AP2 checkout)."""
+    try:
+        await _guard_commerce()
+    except MerchantUnavailableError as exc:
+        return exc.as_dict()
+
     from services.ucp_service import UcpService
 
     svc = UcpService()
@@ -311,6 +328,11 @@ async def create_checkout(
     payment_method: str = "card",
 ) -> dict[str, Any]:
     """Create UCP checkout session + AP2 Checkout JWT (ap2_mandate extension)."""
+    try:
+        await _guard_commerce()
+    except MerchantUnavailableError as exc:
+        return exc.as_dict()
+
     ucp_checkout = await _ucp_post("/checkout-sessions", {"cart_id": cart_id})
     checkout_id = ucp_checkout.get("id")
 
@@ -386,6 +408,11 @@ async def complete_checkout(
     payment_method: str = "card",
 ) -> dict[str, Any]:
     """Complete AP2 checkout (mandate + MPP) and sync UCP checkout session."""
+    try:
+        await _guard_commerce()
+    except MerchantUnavailableError as exc:
+        return exc.as_dict()
+
     ap2_result = await _call_heg(
         "complete_checkout",
         payment_token,

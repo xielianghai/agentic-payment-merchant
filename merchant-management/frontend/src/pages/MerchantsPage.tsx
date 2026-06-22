@@ -2,7 +2,7 @@ import { App as AntdApp, Button, Card, Drawer, Popconfirm, Space, Table } from '
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { deleteMerchant, getMerchant, getMerchants, onboardMerchant } from '@/services/api'
+import { deleteMerchant, disableMerchant, enableMerchant, getMerchant, getMerchants, onboardMerchant } from '@/services/api'
 import { StatusTag } from '@/components/StatusTag'
 import { JsonPreview } from '@/components/JsonPreview'
 import type { Merchant } from '@/services/api'
@@ -29,6 +29,24 @@ export function MerchantsPage() {
   const onboardMutation = useMutation({
     mutationFn: onboardMerchant,
     onSuccess: () => invalidate(),
+  })
+
+  const disableMutation = useMutation({
+    mutationFn: disableMerchant,
+    onSuccess: (_data, merchantId) => {
+      message.success(t('merchants.disableSuccess', { id: merchantId }))
+      invalidate()
+    },
+    onError: (err: Error) => message.error(err.message),
+  })
+
+  const enableMutation = useMutation({
+    mutationFn: enableMerchant,
+    onSuccess: (_data, merchantId) => {
+      message.success(t('merchants.enableSuccess', { id: merchantId }))
+      invalidate()
+    },
+    onError: (err: Error) => message.error(err.message),
   })
 
   const deleteMutation = useMutation({
@@ -68,9 +86,33 @@ export function MerchantsPage() {
       render: (_: unknown, row: Merchant) => (
         <Space size={0} className="merchant-table-actions">
           <Button type="link" size="small" onClick={() => setDetailId(row.id)}>{t('merchants.view')}</Button>
-          {row.status !== 'ACTIVE' && (
+          {row.status === 'PENDING' && (
             <Button type="link" size="small" loading={onboardMutation.isPending} onClick={() => onboardMutation.mutate(row.id)}>
               {t('merchants.onboard')}
+            </Button>
+          )}
+          {row.status === 'ACTIVE' && (
+            <Popconfirm
+              title={t('merchants.disableConfirmTitle')}
+              description={t('merchants.disableConfirmDesc', {
+                name: i18n.language === 'zh' ? row.display_name_zh : row.display_name_en,
+                id: row.id,
+              })}
+              okText={t('merchants.disableConfirmOk')}
+              cancelText={t('common.cancel')}
+              okButtonProps={{ danger: true, loading: disableMutation.isPending }}
+              overlayClassName="merchant-disable-popconfirm"
+              overlayInnerStyle={{ maxWidth: 360 }}
+              onConfirm={() => disableMutation.mutate(row.id)}
+            >
+              <Button type="link" size="small" danger loading={disableMutation.isPending}>
+                {t('merchants.disable')}
+              </Button>
+            </Popconfirm>
+          )}
+          {row.status === 'DISABLED' && (
+            <Button type="link" size="small" loading={enableMutation.isPending} onClick={() => enableMutation.mutate(row.id)}>
+              {t('merchants.enable')}
             </Button>
           )}
           <Popconfirm

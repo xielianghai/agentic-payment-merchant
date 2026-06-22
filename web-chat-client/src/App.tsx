@@ -20,6 +20,11 @@ import {
 import {MerchantCapabilities} from './components/MerchantCapabilities';
 import {MerchantPicker} from './components/MerchantPicker';
 import {type ChatState, useChat} from './hooks/useChat';
+import {
+  fetchRegistryMerchants,
+  FLIGHT_MERCHANT_UNAVAILABLE_MESSAGE,
+  isFlightMerchantRegistryActive,
+} from './services/registry';
 
 // ==========================================
 // SUB-COMPONENTS
@@ -128,10 +133,12 @@ const EmptyChatState = ({
   ap2Config,
   merchant,
   onTryExample,
+  flightMerchantAvailable,
 }: {
   ap2Config: Ap2ModeConfig;
   merchant: MerchantKey;
   onTryExample: (text: string) => void;
+  flightMerchantAvailable: boolean;
 }) => {
   const merchantDemo = getMerchantDemo(merchant);
   const enterExample = defaultChatStarterMessage(merchant);
@@ -141,6 +148,10 @@ const EmptyChatState = ({
       <div className="icon">{merchantDemo.icon}</div>
       <div className="title">AP2 Demo</div>
       <div className="merchant-demo-label">{merchantDemo.label}</div>
+
+      {merchant === 'flight' && !flightMerchantAvailable && (
+        <p className="merchant-unavailable-notice">{FLIGHT_MERCHANT_UNAVAILABLE_MESSAGE}</p>
+      )}
 
       <MerchantCapabilities
         merchant={merchant}
@@ -211,6 +222,23 @@ export default function App() {
   // also resets the merchant and returns to the conversational picker.
   const [merchant, setMerchant] = useState<MerchantKey | null>(null);
   const [showModePicker, setShowModePicker] = useState(false);
+  const [flightMerchantAvailable, setFlightMerchantAvailable] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchRegistryMerchants()
+      .then((merchants) => {
+        if (!cancelled) {
+          setFlightMerchantAvailable(isFlightMerchantRegistryActive(merchants));
+        }
+      })
+      .catch(() => {
+        // Registry unavailable — Adapter guard remains authoritative.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function handleMerchantSelected(next: MerchantKey) {
     setMerchant(next);
@@ -220,6 +248,7 @@ export default function App() {
       ap2Config,
       merchant,
       handleMerchantSelected,
+      flightMerchantAvailable,
   );
   const [activeTab, setActiveTab] = useState<TabKey>('chat');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -278,12 +307,18 @@ export default function App() {
             ) : (
               <>
                 {merchant === null ? (
-                  <MerchantPicker />
+                  <>
+                    <MerchantPicker />
+                    {!flightMerchantAvailable && (
+                      <p className="merchant-unavailable-notice">{FLIGHT_MERCHANT_UNAVAILABLE_MESSAGE}</p>
+                    )}
+                  </>
                 ) : (
                   <EmptyChatState
                     ap2Config={ap2Config}
                     merchant={merchant}
                     onTryExample={chatState.setInput}
+                    flightMerchantAvailable={flightMerchantAvailable}
                   />
                 )}
                 {chatState.loading && (

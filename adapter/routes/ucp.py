@@ -3,10 +3,18 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from services.registry import MerchantUnavailableError, resolve_active_merchant_id
 from services.ucp_service import UcpService
 
 router = APIRouter(prefix="", tags=["ucp"])
 _service = UcpService()
+
+
+async def _guard_commerce() -> str:
+    try:
+        return await resolve_active_merchant_id()
+    except MerchantUnavailableError as exc:
+        raise HTTPException(status_code=403, detail=exc.as_dict()) from exc
 
 
 class CatalogSearchRequest(BaseModel):
@@ -36,11 +44,13 @@ class CheckoutFinalizeRequest(BaseModel):
 
 @router.post("/catalog/search")
 async def catalog_search(body: CatalogSearchRequest) -> dict[str, Any]:
+    await _guard_commerce()
     return await _service.catalog_search(body.query, price_cap=body.price_cap)
 
 
 @router.post("/carts")
 async def create_cart(body: CartCreateRequest) -> dict[str, Any]:
+    await _guard_commerce()
     try:
         return await _service.create_cart(body.item_id, qty=body.qty)
     except ValueError as exc:
@@ -49,6 +59,7 @@ async def create_cart(body: CartCreateRequest) -> dict[str, Any]:
 
 @router.post("/checkout-sessions")
 async def create_checkout_session(body: CheckoutCreateRequest) -> dict[str, Any]:
+    await _guard_commerce()
     try:
         return await _service.create_checkout_session(body.cart_id)
     except ValueError as exc:
@@ -66,6 +77,7 @@ async def get_checkout_session(checkout_id: str) -> dict[str, Any]:
 @router.post("/checkout-sessions/{checkout_id}/ap2-mandate")
 async def attach_ap2_mandate(checkout_id: str, body: Ap2MandateAttachRequest) -> dict[str, Any]:
     """Attach AP2 Checkout JWT to UCP checkout session (ap2_mandate extension)."""
+    await _guard_commerce()
     try:
         checkout = await _service.attach_ap2_checkout(
             checkout_id,
@@ -80,6 +92,7 @@ async def attach_ap2_mandate(checkout_id: str, body: Ap2MandateAttachRequest) ->
 @router.post("/checkout-sessions/{checkout_id}/finalize")
 async def finalize_checkout_session(checkout_id: str, body: CheckoutFinalizeRequest) -> dict[str, Any]:
     """Finalize UCP checkout after AP2 payment succeeded (sync state only)."""
+    await _guard_commerce()
     try:
         return await _service.finalize_from_ap2(
             checkout_id,
@@ -102,6 +115,7 @@ async def get_checkout_by_issue(issue_id: str) -> dict[str, Any]:
 @router.post("/checkout-sessions/{checkout_id}/complete")
 async def complete_checkout_session(checkout_id: str) -> dict[str, Any]:
     """Direct UCP complete (HEG confirm + pay) — used when AP2 is not involved."""
+    await _guard_commerce()
     try:
         return await _service.complete_checkout(checkout_id)
     except ValueError as exc:
