@@ -232,6 +232,10 @@ mcporter call ap2-merchant-adapter.complete_checkout \
   payment_method=x402
 ```
 
+If `complete_checkout` returns a `purchase_complete` object, output that JSON
+object exactly as the final answer and stop. If it returns `order_id`, the
+purchase is complete — do **not** ask the user what flight or item they wanted.
+
 **Never** pass `cart_id` to `complete_checkout`. **Never** call
 `complete_checkout` twice with the same `x402_tok_*` — the token is **one-time**.
 
@@ -278,7 +282,9 @@ mcporter call ap2-buyer.register_price_monitor_tool \
 9. If `payment_method=x402`: `ap2-buyer.create_x402_wallet_sign_session` → post
    **`wallet_sign_portal_url`** and stop. After the user / hook reports MetaMask
    completion, call `ap2-buyer.wait_for_x402_wallet_signed` with the same x402
-   ref, then continue.
+   ref, then continue using the exact `payment_nonce`, `open_checkout_hash`,
+   `checkout_jwt_hash`, `checkout_mandate_chain_id`, and `checkout_nonce`
+   returned by that tool.
 10. **`ap2-cp.issue_payment_credential`** (once) → **`ap2-merchant-adapter.complete_checkout`**
     (once, string `payment_token` only) → `verify_checkout_receipt_tool` → post
     booking confirmed + **`purchase_complete`** JSON.

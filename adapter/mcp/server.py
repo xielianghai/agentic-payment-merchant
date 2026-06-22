@@ -340,6 +340,44 @@ async def create_checkout(
     return ap2_result
 
 
+def _purchase_complete_from_checkout(
+    ap2_result: dict[str, Any],
+    checkout: dict[str, Any] | None,
+    payment_method: str,
+) -> dict[str, Any] | None:
+    order_id = ap2_result.get("order_id")
+    if not order_id:
+        return None
+    line_items = (checkout or {}).get("line_items") or []
+    first_item = line_items[0] if line_items else {}
+    item_id = first_item.get("item_id") or (checkout or {}).get("item_id")
+    item_name = first_item.get("item_name") or item_id
+    total_cents = (checkout or {}).get("total") or ap2_result.get("total_cents")
+    currency = (checkout or {}).get("currency") or ap2_result.get("currency") or "USD"
+    return {
+        "type": "purchase_complete",
+        "order_id": order_id,
+        "item_id": item_id,
+        "item_name": item_name,
+        "total_cents": total_cents,
+        "currency": currency,
+        "payment_method": payment_method,
+        "payment_method_description": (
+            "x402 · MetaMask · SepoliaETH (Sepolia)"
+            if payment_method == "x402"
+            else "Card •••4242"
+        ),
+        "status": "success",
+        "receipt": {
+            "order_id": order_id,
+            "checkout_receipt": ap2_result.get("checkout_receipt"),
+            "payment_receipt": ap2_result.get("payment_receipt"),
+            "ucp_checkout_id": (checkout or {}).get("id"),
+            "protocol": "UCP+AP2",
+        },
+    }
+
+
 @mcp.tool()
 async def complete_checkout(
     payment_token: str,
@@ -367,6 +405,7 @@ async def complete_checkout(
                 ucp_checkout_id = ucp_checkout.get("id")
             except httpx.HTTPError:
                 ucp_checkout_id = None
+        ucp_final = None
         if ucp_checkout_id and ap2_result.get("order_id"):
             try:
                 ucp_final = await _ucp_post(
@@ -379,6 +418,23 @@ async def complete_checkout(
                 ap2_result["ucp_checkout"] = ucp_final
             except httpx.HTTPError as exc:
                 _logger.warning("UCP finalize failed: %s", exc)
+        checkout_for_receipt = ucp_final
+        if checkout_for_receipt is None and ucp_checkout_id:
+            try:
+                checkout_for_receipt = await _ucp_get(
+                    f"/checkout-sessions/{ucp_checkout_id}"
+                )
+            except httpx.HTTPError:
+                checkout_for_receipt = None
+        purchase_complete = _purchase_complete_from_checkout(
+            ap2_result, checkout_for_receipt, payment_method
+        )
+        if purchase_complete:
+            ap2_result["purchase_complete"] = purchase_complete
+            ap2_result["message"] = (
+                "Checkout complete. Emit purchase_complete exactly as returned; "
+                "do not ask the user for item or cart details."
+            )
         ap2_result["protocol"] = "UCP+AP2"
     return ap2_result
 

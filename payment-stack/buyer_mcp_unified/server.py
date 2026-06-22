@@ -265,6 +265,10 @@ def create_x402_wallet_sign_session(
     session_id: str,
     payment_mandate_chain_id: str,
     payment_nonce: str = "",
+    open_checkout_hash: str = "",
+    checkout_jwt_hash: str = "",
+    checkout_mandate_chain_id: str = "",
+    checkout_nonce: str = "",
 ) -> dict[str, Any]:
   """Create MetaMask wallet sign session; return wallet_sign_portal_url.
 
@@ -278,6 +282,10 @@ def create_x402_wallet_sign_session(
       session_id,
       payment_mandate_chain_id,
       payment_nonce=payment_nonce.strip() or None,
+      open_checkout_hash=open_checkout_hash.strip() or None,
+      checkout_jwt_hash=checkout_jwt_hash.strip() or None,
+      checkout_mandate_chain_id=checkout_mandate_chain_id.strip() or None,
+      checkout_nonce=checkout_nonce.strip() or None,
   )
 
 

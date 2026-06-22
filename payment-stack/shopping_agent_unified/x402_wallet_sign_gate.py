@@ -218,6 +218,61 @@ def _parse_verified_payment_chain(
   return PaymentMandateChain.parse(payloads)
 
 
+def _open_checkout_hash_from_chain(parsed: PaymentMandateChain) -> str:
+  for constraint in parsed.open_mandate.constraints or []:
+    cid = getattr(constraint, "conditional_transaction_id", None)
+    if cid:
+      return str(cid)
+    if isinstance(constraint, dict):
+      cid = constraint.get("conditional_transaction_id")
+      if cid:
+        return str(cid)
+  return ""
+
+
+def _hp_credential_context(record: dict[str, Any]) -> dict[str, str]:
+  """Recover HP issue_payment_credential args after MetaMask resume."""
+  out = {
+      "payment_nonce": str(record.get("payment_nonce") or ""),
+      "payment_mandate_chain_id": str(record.get("payment_mandate_chain_id") or ""),
+      "open_checkout_hash": str(record.get("open_checkout_hash") or ""),
+      "checkout_jwt_hash": str(record.get("checkout_jwt_hash") or ""),
+      "checkout_mandate_chain_id": str(record.get("checkout_mandate_chain_id") or ""),
+      "checkout_nonce": str(record.get("checkout_nonce") or ""),
+  }
+  mandate_chain = str(record.get("mandate_chain") or "")
+  if not mandate_chain:
+    return out
+  try:
+    parsed = _parse_verified_payment_chain(
+        mandate_chain,
+        payment_nonce=out["payment_nonce"] or None,
+    )
+    if not out["checkout_jwt_hash"]:
+      out["checkout_jwt_hash"] = str(parsed.closed_mandate.transaction_id or "")
+    if not out["open_checkout_hash"]:
+      out["open_checkout_hash"] = _open_checkout_hash_from_chain(parsed)
+  except (ValueError, TypeError, AttributeError):
+    pass
+  return out
+
+
+def _signed_wallet_status_extras(record: dict[str, Any]) -> dict[str, Any]:
+  ctx = _hp_credential_context(record)
+  return {
+      **ctx,
+      "presence_mode": "hp",
+      "agent_instruction": (
+          "Call ap2-cp.issue_payment_credential with payment_method=x402, "
+          "presence_mode=hp, and the payment_mandate_chain_id, payment_nonce, "
+          "open_checkout_hash, checkout_jwt_hash fields from this tool result. "
+          "Then complete_checkout with payment_token plus checkout_mandate_chain_id "
+          "and checkout_nonce from this result. Do NOT call list_wallets or restart "
+          "search/cart/checkout."
+      ),
+  }
+
+
 def _wallet_sign_channel_messages(
     portal_url: str,
     *,
@@ -260,6 +315,10 @@ def create_x402_wallet_sign_session(
     payment_mandate_chain_id: str,
     *,
     payment_nonce: str | None = None,
+    open_checkout_hash: str | None = None,
+    checkout_jwt_hash: str | None = None,
+    checkout_mandate_chain_id: str | None = None,
+    checkout_nonce: str | None = None,
 ) -> dict[str, Any]:
   """Create MetaMask wallet sign session; return portal URL."""
   sid = _canonical_session_id(session_id)
@@ -293,6 +352,12 @@ def create_x402_wallet_sign_session(
   ref = secrets.token_urlsafe(12)
   now = time.time()
   payee, amount_cents = extract_payee_and_amount(parsed)
+  resolved_checkout_jwt_hash = (checkout_jwt_hash or "").strip() or str(
+      parsed.closed_mandate.transaction_id or ""
+  )
+  resolved_open_checkout_hash = (open_checkout_hash or "").strip() or (
+      _open_checkout_hash_from_chain(parsed)
+  )
   valid_before = int(now) + 3600
   built = build_transfer_with_authorization(
       mandate_chain,
@@ -305,6 +370,10 @@ def create_x402_wallet_sign_session(
       "session_id": sid,
       "payment_mandate_chain_id": chain_id,
       "payment_nonce": payment_nonce or "",
+      "open_checkout_hash": resolved_open_checkout_hash,
+      "checkout_jwt_hash": resolved_checkout_jwt_hash,
+      "checkout_mandate_chain_id": (checkout_mandate_chain_id or "").strip(),
+      "checkout_nonce": (checkout_nonce or "").strip(),
       "mandate_chain": mandate_chain,
       "typed_data": built["typed_data"],
       "payment_wei": built["payment_value"],
@@ -506,8 +575,10 @@ def get_x402_wallet_sign_status(ref: str) -> dict[str, Any]:
   }
   if status == "signed":
     out["wallet_address"] = record.get("wallet_address")
+    out.update(_signed_wallet_status_extras(record))
     out["message"] = (
-        "MetaMask signature recorded. Continue with ap2-cp.issue_payment_credential."
+        "MetaMask signature recorded. Use the credential fields in this result "
+        "for ap2-cp.issue_payment_credential, then complete_checkout."
     )
   elif status == "expired":
     out["message"] = (

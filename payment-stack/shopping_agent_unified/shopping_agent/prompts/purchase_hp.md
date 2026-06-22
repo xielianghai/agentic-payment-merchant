@@ -22,11 +22,12 @@ HP needs **open mandates before** merchant `create_checkout`, and **closed manda
 6. When the user sends **`immediate_checkout_approved`**, **resume at this step** — do **not** call **search_inventory**, **check_product**, **assemble_cart**, or **create_checkout** again (re-running them creates a duplicate order). Call **assemble_and_sign_immediate_mandates_tool** with JSON from your **earlier** step 4 result:
    - `checkout_jwt`, `checkout_jwt_hash`, `amount_cents`, `item_id`, `price_cap`, `qty`, `payment_method`
    - Open mandates are reused from step 3 (session) — do **not** call **create_hp_open_mandates_tool** again.
-7. **(x402 only)** Before **issue_payment_credential**: call **create_x402_wallet_sign_session** with `payment_mandate_chain_id` and `payment_nonce` from step 6 → post **`wallet_sign_portal_url`** (path **`/ts/x402/sign`**, NOT `/ts/confirm`) and **stop**. The web client / OpenClaw hook will resume with structured `x402_wallet_signed` after MetaMask records the signature and transfer. When resumed with `x402_wallet_signed`, call **wait_for_x402_wallet_signed(ref=payload.ref)** once, then continue to step 8. If the user manually says they signed, call **wait_for_x402_wallet_signed** with the same ref from the portal URL.
-8. **issue_payment_credential** → **complete_checkout** — always pass `payment_method` (`card` or `x402`) to **both** `create_checkout` and `complete_checkout` so the merchant settles on the correct rail.
+7. **(x402 only)** Before **issue_payment_credential**: call **create_x402_wallet_sign_session** with `payment_mandate_chain_id` and `payment_nonce` from step 6 → post **`wallet_sign_portal_url`** (path **`/ts/x402/sign`**, NOT `/ts/confirm`) and **stop**. The web client / OpenClaw hook will resume with structured `x402_wallet_signed` after MetaMask records the signature and transfer. When resumed with `x402_wallet_signed`, call **wait_for_x402_wallet_signed(ref=payload.ref)** once, then continue to step 8 using the **exact** `payment_nonce`, `open_checkout_hash`, `checkout_jwt_hash`, `checkout_mandate_chain_id`, and `checkout_nonce` returned by that tool — do **not** guess or leave them blank. Do **not** call **list_wallets**.
+8. **issue_payment_credential** → **complete_checkout** — pass `payment_method=x402`, `presence_mode=hp`, and the credential fields from step 7's **wait_for_x402_wallet_signed** result to **issue_payment_credential**; pass `payment_token` plus `checkout_mandate_chain_id` and `checkout_nonce` from the same result to **complete_checkout**. Always pass `payment_method` to merchant tools too.
 9. Emit **`purchase_complete`** JSON (last in message) and **stop** — do not call assemble_cart, create_checkout, or mandate tools again:
    `{"type":"purchase_complete","order_id":"...","item_id":"...","item_name":"...","total_cents":{{EXAMPLE_TOTAL_CENTS}},"currency":"{{CURRENCY}}","payment_method":"card","payment_method_description":"Card •••4242","status":"success","receipt":{...}}`
    - `order_id` from **complete_checkout**.
+   - If **complete_checkout** returns a `purchase_complete` object, output that JSON object exactly as the last message and stop.
    - `total_cents` / `item_*` / `payment_method*` / `currency` from the matching **immediate_checkout_request** and session config.
    - Include `receipt` fields from **complete_checkout** when available.
 
@@ -37,4 +38,5 @@ HP needs **open mandates before** merchant `create_checkout`, and **closed manda
 - **Never** emit a second `immediate_checkout_request` for the same purchase.
 - **Never** call **assemble_cart** or **create_checkout** more than once per purchase — each call creates a new merchant order.
 - **Never** restart checkout after **complete_checkout** succeeds — emit **purchase_complete** and end.
+- After **complete_checkout** succeeds, never ask what flight/item/cart the user wanted. The order is already complete.
 - On tool error, emit error JSON and stop.

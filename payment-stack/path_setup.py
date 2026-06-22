@@ -4,6 +4,12 @@ import sys
 from pathlib import Path
 
 
+def ensure_common_overrides_on_path() -> Path:
+  """Insert local common/ overrides before AP2 src (x402 MetaMask on develop)."""
+  overrides = Path(__file__).resolve().parent / "ap2_common_overrides"
+  return overrides
+
+
 def ensure_src_on_path() -> Path:
   """Insert AP2 code/samples/python/src on sys.path."""
   import os
@@ -14,8 +20,13 @@ def ensure_src_on_path() -> Path:
     ap2_root = Path(__file__).resolve().parents[1].parent / "AP2"
   ap2_samples = ap2_root / "code" / "samples" / "python" / "src"
   src_str = str(ap2_samples)
-  if src_str not in sys.path:
-    sys.path.insert(0, src_str)
+  overrides_str = str(ensure_common_overrides_on_path())
+  for path in (src_str, overrides_str):
+    while path in sys.path:
+      sys.path.remove(path)
+  # Local x402 helpers must precede AP2 src so namespace common/ merges correctly.
+  sys.path.insert(0, src_str)
+  sys.path.insert(0, overrides_str)
   return ap2_samples
 
 

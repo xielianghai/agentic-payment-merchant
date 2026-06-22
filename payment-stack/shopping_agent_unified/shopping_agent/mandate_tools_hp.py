@@ -22,6 +22,7 @@ from ap2.sdk.generated.types.merchant import Merchant
 from ap2.sdk.generated.types.payment_instrument import PaymentInstrument
 from ap2.sdk.mandate import MandateClient
 from ap2.sdk.sdjwt import compute_sd_hash, parse_token
+from ap2.sdk.utils import compute_sha256_b64url
 from common.constants import DEFAULT_MANDATE_TTL_SECONDS, TEMP_DB
 from shopping_agent.mandate_bridge import _mt_module as _mt_v2
 
@@ -239,7 +240,10 @@ def assemble_and_sign_immediate_mandates_tool(
     client = MandateClient()
 
     checkout_jwt = req["checkout_jwt"]
-    checkout_jwt_hash = req["checkout_jwt_hash"]
+    checkout_jwt_hash = (
+        str(req.get("checkout_jwt_hash") or "").strip()
+        or compute_sha256_b64url(checkout_jwt)
+    )
     checkout_nonce = req.get("checkout_nonce") or str(uuid.uuid4())
     payment_nonce = req.get("payment_nonce") or str(uuid.uuid4())
     amount_cents = int(req["amount_cents"])
@@ -281,6 +285,7 @@ def assemble_and_sign_immediate_mandates_tool(
     tool_context.state["app:open_payment_mandate_id"] = open_payment_id
     tool_context.state["app:open_checkout_hash"] = open_checkout_hash
     tool_context.state["temp:checkout_mandate_chain"] = chk_id
+    tool_context.state["temp:checkout_jwt_hash"] = checkout_jwt_hash
     tool_context.state["temp:checkout_nonce"] = checkout_nonce
     tool_context.state["temp:payment_mandate_chain"] = pay_id
     tool_context.state["temp:payment_nonce"] = payment_nonce

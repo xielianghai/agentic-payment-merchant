@@ -183,12 +183,34 @@ def create_x402_wallet_sign_session(
     payment_mandate_chain_id: str,
     tool_context: ToolContext,
     payment_nonce: str = "",
+    open_checkout_hash: str = "",
+    checkout_jwt_hash: str = "",
+    checkout_mandate_chain_id: str = "",
+    checkout_nonce: str = "",
 ) -> dict[str, Any]:
   """Create a MetaMask x402 signing session for the current ADK session."""
+  state = tool_context.state
+  nonce = payment_nonce.strip() or str(state.get("temp:payment_nonce") or "")
   return _create_x402_wallet_sign_session(
       _tool_context_session_id(tool_context),
       payment_mandate_chain_id,
-      payment_nonce=payment_nonce.strip() or None,
+      payment_nonce=nonce or None,
+      open_checkout_hash=(
+          open_checkout_hash.strip() or str(state.get("app:open_checkout_hash") or "")
+      )
+      or None,
+      checkout_jwt_hash=checkout_jwt_hash.strip()
+      or str(state.get("temp:checkout_jwt_hash") or "")
+      or None,
+      checkout_mandate_chain_id=(
+          checkout_mandate_chain_id.strip()
+          or str(state.get("temp:checkout_mandate_chain") or "")
+      )
+      or None,
+      checkout_nonce=(
+          checkout_nonce.strip() or str(state.get("temp:checkout_nonce") or "")
+      )
+      or None,
   )
 
 
