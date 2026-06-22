@@ -100,6 +100,18 @@ body {
   font-size: 13px;
 }
 
+.dashboard-stat--success .ant-statistic-title {
+  color: #389e0d;
+}
+
+.dashboard-stat--warning .ant-statistic-title {
+  color: #d4b106;
+}
+
+.dashboard-stat--danger .ant-statistic-title {
+  color: #cf1322;
+}
+
 .merchant-delete-popconfirm {
   max-width: 360px;
 }

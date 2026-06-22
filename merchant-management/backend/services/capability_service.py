@@ -98,6 +98,9 @@ async def update_capability(
 
 
 async def delete_capability(session: AsyncSession, merchant_id: str, capability_id: str) -> None:
+    existing = await get_capability(session, merchant_id, capability_id)
+    if not existing:
+        raise ValueError("Capability not found")
     await session.execute(
         text("DELETE FROM merchant_capabilities WHERE merchant_id=:merchant_id AND capability_id=:capability_id"),
         {"merchant_id": merchant_id, "capability_id": capability_id},

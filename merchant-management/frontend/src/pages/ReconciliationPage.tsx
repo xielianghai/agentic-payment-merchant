@@ -1,4 +1,4 @@
-import { App as AntdApp, Alert, Button, Card, Col, Drawer, Row, Space, Statistic, Table } from 'antd'
+import { App as AntdApp, Button, Card, Col, Drawer, Row, Space, Statistic, Table } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,7 +39,6 @@ export function ReconciliationPage({ merchantId }: Props) {
   })
 
   const stats = monitoringQuery.data?.transaction_stats
-  const mandateAlert = monitoringQuery.data?.alerts?.find((a) => a.type === 'mandate_verify_fail')
 
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id' },
@@ -59,10 +58,6 @@ export function ReconciliationPage({ merchantId }: Props) {
 
   return (
     <div className="page-stack">
-      {mandateAlert && mandateAlert.count > 0 && (
-        <Alert type="error" showIcon message={t('reconciliation.mandateAlert')} description={t('reconciliation.mandateAlertDesc', { count: mandateAlert.count })} />
-      )}
-
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={6}><Card><Statistic title={t('reconciliation.txTotal')} value={stats?.total_transactions ?? 0} /></Card></Col>
         <Col xs={24} sm={6}><Card><Statistic title={t('reconciliation.txCompleted')} value={stats?.completed_transactions ?? 0} /></Card></Col>

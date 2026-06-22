@@ -211,8 +211,11 @@ async def update_capability(
 async def delete_capability(
     merchant_id: str, capability_id: str, session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
-    await cap_svc.delete_capability(session, merchant_id, capability_id)
-    return {"code": "ok", "data": None}
+    try:
+        await cap_svc.delete_capability(session, merchant_id, capability_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"code": "ok", "data": None, "message": "Capability deleted successfully"}
 
 
 @router.post("/merchants/{merchant_id}/capabilities/{capability_id}/validate")

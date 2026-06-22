@@ -1,23 +1,26 @@
 import { App as AntdApp, Button, Card, Descriptions, Form, Input, Select, Space, Steps, Typography } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   createMerchant,
+  getMerchant,
   getOnboarding,
   onboardMerchant,
   reviewKyb,
   signContract,
   submitKyb,
+  type Merchant,
 } from '@/services/api'
 import { StatusTag } from '@/components/StatusTag'
 
 interface Props {
   merchantId: string
   onMerchantCreated?: (merchantId: string) => void
+  onCreateModeChange?: (creating: boolean) => void
 }
 
-export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
+export function OnboardingPage({ merchantId, onMerchantCreated, onCreateModeChange }: Props) {
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const queryClient = useQueryClient()
@@ -25,21 +28,34 @@ export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
   const [createForm] = Form.useForm()
   const [showCreate, setShowCreate] = useState(false)
 
+  useEffect(() => {
+    onCreateModeChange?.(showCreate)
+    return () => onCreateModeChange?.(false)
+  }, [showCreate, onCreateModeChange])
+
   const onboardingQuery = useQuery({
     queryKey: ['onboarding', merchantId],
     queryFn: () => getOnboarding(merchantId),
+    enabled: !showCreate,
+    retry: false,
   })
+  const merchantQuery = useQuery({
+    queryKey: ['merchant', merchantId],
+    queryFn: () => getMerchant(merchantId),
+    enabled: !showCreate,
+    retry: false,
+  })
+
+  useEffect(() => {
+    form.resetFields()
+  }, [merchantId, form])
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['onboarding', merchantId] })
+    void queryClient.invalidateQueries({ queryKey: ['merchant', merchantId] })
     void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     void queryClient.invalidateQueries({ queryKey: ['merchants'] })
     void queryClient.invalidateQueries({ queryKey: ['logs'] })
-  }
-
-  const invalidateAll = () => {
-    invalidate()
-    void queryClient.invalidateQueries({ queryKey: ['onboarding'] })
   }
 
   const submitKybMutation = useMutation({
@@ -56,7 +72,11 @@ export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
   })
   const onboardMutation = useMutation({
     mutationFn: () => onboardMerchant(merchantId),
-    onSuccess: () => { message.success(t('onboarding.success')); invalidate() },
+    onSuccess: (merchant) => {
+      message.success(t('onboarding.success'))
+      queryClient.setQueryData(['merchant', merchantId], merchant)
+      invalidate()
+    },
     onError: (err: Error) => message.error(err.message),
   })
   const createMutation = useMutation({
@@ -71,12 +91,29 @@ export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
       backend_base_url?: string
       country?: string
     }) => createMerchant(values),
-    onSuccess: (merchant) => {
+    onSuccess: async (merchant) => {
       message.success(t('onboarding.merchantCreated', { id: merchant.id }))
       createForm.resetFields()
-      setShowCreate(false)
-      invalidateAll()
+
+      queryClient.setQueryData(['merchants'], (old: Merchant[] | undefined) => {
+        if (!old) return [merchant]
+        if (old.some((m) => m.id === merchant.id)) return old
+        return [...old, merchant]
+      })
+      queryClient.setQueryData(['merchant', merchant.id], merchant)
+      try {
+        const onboarding = await getOnboarding(merchant.id)
+        queryClient.setQueryData(['onboarding', merchant.id], onboarding)
+      } catch {
+        // wizard will refetch if prefetch fails
+      }
+
       onMerchantCreated?.(merchant.id)
+      setShowCreate(false)
+
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      void queryClient.invalidateQueries({ queryKey: ['merchants'] })
+      void queryClient.invalidateQueries({ queryKey: ['logs'] })
     },
     onError: (err: Error) => message.error(err.message),
   })
@@ -84,7 +121,24 @@ export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
   const data = onboardingQuery.data
   const kyb = data?.kyb
   const contract = data?.contract
-  const currentStep = !kyb ? 0 : kyb.status !== 'APPROVED' ? 1 : contract?.status !== 'SIGNED' ? 2 : 3
+  const merchant = merchantQuery.data
+  const hasActivatedTask = data?.tasks?.some(
+    (task) => task.step === 'activate_merchant' && task.status === 'COMPLETED',
+  )
+  const isOnboarded =
+    merchant?.status === 'ACTIVE' ||
+    merchant?.status === 'DISABLED' ||
+    Boolean(merchant?.onboarded_at) ||
+    hasActivatedTask
+  const currentStep = isOnboarded
+    ? 4
+    : !kyb
+      ? 0
+      : kyb.status !== 'APPROVED'
+        ? 1
+        : contract?.status !== 'SIGNED'
+          ? 2
+          : 3
 
   return (
     <div className="page-stack">
@@ -143,6 +197,14 @@ export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
         )}
       </Card>
 
+      {!showCreate && merchantQuery.isError && (
+        <Card>
+          <Typography.Text type="secondary">{t('onboarding.merchantNotFound')}</Typography.Text>
+        </Card>
+      )}
+
+      {!showCreate && merchantQuery.isSuccess && (
+        <>
       <Card title={t('onboarding.title')} loading={onboardingQuery.isLoading}>
         <Typography.Paragraph>{t('onboarding.description')}</Typography.Paragraph>
         <Steps
@@ -165,17 +227,17 @@ export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
               <Descriptions.Item label={t('onboarding.status')}><StatusTag status={kyb.status} /></Descriptions.Item>
             </Descriptions>
           ) : (
-            <Form form={form} layout="vertical" onFinish={(v) => submitKybMutation.mutate(v)}>
+            <Form key={merchantId} form={form} layout="vertical" onFinish={(v) => submitKybMutation.mutate(v)}>
               <Form.Item name="legal_name" label={t('onboarding.legalName')} rules={[{ required: true }]}>
-                <Input defaultValue="HEG Flight Pte Ltd" />
+                <Input />
               </Form.Item>
               <Form.Item name="registration_no" label={t('onboarding.registrationNo')} rules={[{ required: true }]}>
-                <Input defaultValue="201912345A" />
+                <Input />
               </Form.Item>
               <Form.Item name="contact_email" label={t('onboarding.contactEmail')} rules={[{ required: true }]}>
-                <Input defaultValue="compliance@hegflight.demo" />
+                <Input />
               </Form.Item>
-              <Form.Item name="vertical" label={t('onboarding.vertical')} initialValue="airline">
+              <Form.Item name="vertical" label={t('onboarding.vertical')} rules={[{ required: true }]}>
                 <Input />
               </Form.Item>
               <Button type="primary" htmlType="submit" loading={submitKybMutation.isPending}>
@@ -212,15 +274,17 @@ export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
           )}
         </Card>
 
-        <Button
-          type="primary"
-          size="large"
-          loading={onboardMutation.isPending}
-          disabled={contract?.status !== 'SIGNED'}
-          onClick={() => onboardMutation.mutate()}
-        >
-          {t('onboarding.oneClick')}
-        </Button>
+        {isOnboarded ? null : (
+          <Button
+            type="primary"
+            size="large"
+            loading={onboardMutation.isPending}
+            disabled={contract?.status !== 'SIGNED'}
+            onClick={() => onboardMutation.mutate()}
+          >
+            {t('onboarding.oneClick')}
+          </Button>
+        )}
       </Card>
 
       {data?.tasks && data.tasks.length > 0 && (
@@ -235,6 +299,8 @@ export function OnboardingPage({ merchantId, onMerchantCreated }: Props) {
             </div>
           ))}
         </Card>
+      )}
+        </>
       )}
     </div>
   )

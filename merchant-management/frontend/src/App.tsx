@@ -14,8 +14,21 @@ import { TrustKeysPage } from '@/pages/TrustKeysPage'
 export default function App() {
   const [page, setPage] = useState<PageKey>('dashboard')
   const [merchantId, setMerchantId] = useState('heg_flight')
+  const [onboardingCreateMode, setOnboardingCreateMode] = useState(false)
 
   const navigate = (target: PageKey) => setPage(target)
+
+  const navigateToOnboarding = (id: string) => {
+    setMerchantId(id)
+    setOnboardingCreateMode(false)
+    setPage('onboarding')
+  }
+
+  const handleMerchantDeleted = (deletedId: string) => {
+    if (merchantId === deletedId) {
+      setMerchantId('heg_flight')
+    }
+  }
 
   const content = (() => {
     switch (page) {
@@ -26,10 +39,17 @@ export default function App() {
           <OnboardingPage
             merchantId={merchantId}
             onMerchantCreated={setMerchantId}
+            onCreateModeChange={setOnboardingCreateMode}
           />
         )
       case 'merchants':
-        return <MerchantsPage />
+        return (
+          <MerchantsPage
+            onNavigateToOnboarding={navigateToOnboarding}
+            selectedMerchantId={merchantId}
+            onMerchantDeleted={handleMerchantDeleted}
+          />
+        )
       case 'capabilities':
         return <CapabilitiesPage merchantId={merchantId} />
       case 'trust':
@@ -60,6 +80,7 @@ export default function App() {
       onPageChange={setPage}
       merchantId={merchantId}
       onMerchantChange={setMerchantId}
+      hideMerchantSelector={onboardingCreateMode}
     >
       {content}
     </AppShell>

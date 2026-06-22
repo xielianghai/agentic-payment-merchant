@@ -38,10 +38,11 @@ interface Props {
   onPageChange: (page: PageKey) => void
   merchantId: string
   onMerchantChange: (id: string) => void
+  hideMerchantSelector?: boolean
   children: React.ReactNode
 }
 
-export function AppShell({ page, onPageChange, merchantId, onMerchantChange, children }: Props) {
+export function AppShell({ page, onPageChange, merchantId, onMerchantChange, hideMerchantSelector = false, children }: Props) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'zh' ? zhCN : enUS
 
@@ -61,7 +62,8 @@ export function AppShell({ page, onPageChange, merchantId, onMerchantChange, chi
     [t],
   )
 
-  const showMerchantSelector = !['dashboard', 'merchants', 'logs'].includes(page)
+  const showMerchantSelector =
+    !hideMerchantSelector && !['dashboard', 'merchants', 'logs'].includes(page)
 
   return (
     <ConfigProvider locale={locale} theme={{ algorithm: theme.defaultAlgorithm }}>

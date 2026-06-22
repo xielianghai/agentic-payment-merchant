@@ -2,12 +2,18 @@ import { App as AntdApp, Button, Card, Drawer, Popconfirm, Space, Table } from '
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { deleteMerchant, disableMerchant, enableMerchant, getMerchant, getMerchants, onboardMerchant } from '@/services/api'
+import { deleteMerchant, disableMerchant, enableMerchant, getMerchant, getMerchants } from '@/services/api'
 import { StatusTag } from '@/components/StatusTag'
 import { JsonPreview } from '@/components/JsonPreview'
 import type { Merchant } from '@/services/api'
 
-export function MerchantsPage() {
+interface Props {
+  onNavigateToOnboarding?: (merchantId: string) => void
+  selectedMerchantId?: string
+  onMerchantDeleted?: (merchantId: string) => void
+}
+
+export function MerchantsPage({ onNavigateToOnboarding, selectedMerchantId, onMerchantDeleted }: Props) {
   const { t, i18n } = useTranslation()
   const { message } = AntdApp.useApp()
   const queryClient = useQueryClient()
@@ -25,11 +31,6 @@ export function MerchantsPage() {
     void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     void queryClient.invalidateQueries({ queryKey: ['logs'] })
   }
-
-  const onboardMutation = useMutation({
-    mutationFn: onboardMerchant,
-    onSuccess: () => invalidate(),
-  })
 
   const disableMutation = useMutation({
     mutationFn: disableMerchant,
@@ -54,6 +55,11 @@ export function MerchantsPage() {
     onSuccess: (_data, merchantId) => {
       message.success(t('merchants.deleteSuccess', { id: merchantId }))
       if (detailId === merchantId) setDetailId(null)
+      queryClient.removeQueries({ queryKey: ['merchant', merchantId] })
+      queryClient.removeQueries({ queryKey: ['onboarding', merchantId] })
+      if (selectedMerchantId === merchantId) {
+        onMerchantDeleted?.(merchantId)
+      }
       invalidate()
     },
     onError: (err: Error) => message.error(err.message),
@@ -87,7 +93,7 @@ export function MerchantsPage() {
         <Space size={0} className="merchant-table-actions">
           <Button type="link" size="small" onClick={() => setDetailId(row.id)}>{t('merchants.view')}</Button>
           {row.status === 'PENDING' && (
-            <Button type="link" size="small" loading={onboardMutation.isPending} onClick={() => onboardMutation.mutate(row.id)}>
+            <Button type="link" size="small" onClick={() => onNavigateToOnboarding?.(row.id)}>
               {t('merchants.onboard')}
             </Button>
           )}

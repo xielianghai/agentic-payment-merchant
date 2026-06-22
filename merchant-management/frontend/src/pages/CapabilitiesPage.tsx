@@ -1,9 +1,10 @@
-import { App as AntdApp, Button, Card, Drawer, Form, Input, Space, Table } from 'antd'
+import { App as AntdApp, Button, Card, Drawer, Form, Input, Popconfirm, Space, Table } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   createCapability,
+  deleteCapability,
   getCapabilities,
   offlineCapability,
   publishCapability,
@@ -47,6 +48,15 @@ export function CapabilitiesPage({ merchantId }: Props) {
     mutationFn: (capId: string) => offlineCapability(merchantId, capId),
     onSuccess: () => { message.success(t('capabilities.offline')); invalidate() },
   })
+  const deleteMutation = useMutation({
+    mutationFn: (capId: string) => deleteCapability(merchantId, capId),
+    onSuccess: (_data, capId) => {
+      message.success(t('capabilities.deleteSuccess', { id: capId }))
+      if (drawerCap?.capability_id === capId) setDrawerCap(null)
+      invalidate()
+    },
+    onError: (err: Error) => message.error(err.message),
+  })
 
   const columns = [
     { title: t('capabilities.id'), dataIndex: 'capability_id', key: 'capability_id' },
@@ -68,6 +78,16 @@ export function CapabilitiesPage({ merchantId }: Props) {
           <Button size="small" onClick={() => validateMutation.mutate(row.capability_id)}>{t('capabilities.validate')}</Button>
           <Button size="small" type="primary" onClick={() => publishMutation.mutate(row.capability_id)}>{t('capabilities.publish')}</Button>
           <Button size="small" danger onClick={() => offlineMutation.mutate(row.capability_id)}>{t('capabilities.offlineAction')}</Button>
+          <Popconfirm
+            title={t('capabilities.deleteConfirmTitle')}
+            description={t('capabilities.deleteConfirmDesc', { id: row.capability_id })}
+            okText={t('capabilities.deleteConfirmOk')}
+            cancelText={t('common.cancel')}
+            okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
+            onConfirm={() => deleteMutation.mutate(row.capability_id)}
+          >
+            <Button size="small" danger>{t('capabilities.delete')}</Button>
+          </Popconfirm>
         </Space>
       ),
     },

@@ -209,6 +209,8 @@ export const createCapability = (id: string, payload: Partial<Capability>) =>
   unwrap<Capability>(api.post(`/admin/merchants/${id}/capabilities`, payload))
 export const updateCapability = (id: string, capId: string, payload: Partial<Capability>) =>
   unwrap<Capability>(api.put(`/admin/merchants/${id}/capabilities/${capId}`, payload))
+export const deleteCapability = (id: string, capId: string) =>
+  unwrap<null>(api.delete(`/admin/merchants/${id}/capabilities/${encodeURIComponent(capId)}`))
 export const validateCapability = (id: string, capId: string) =>
   unwrap<Capability>(api.post(`/admin/merchants/${id}/capabilities/${capId}/validate`))
 export const publishCapability = (id: string, capId: string) =>
