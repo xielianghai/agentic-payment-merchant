@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.audit_service import log_operation
+from services.capability_defaults import enrich_capability_payload
 from services.common import dumps, loads, one, rows
 
 
@@ -34,6 +35,7 @@ async def get_capability(session: AsyncSession, merchant_id: str, capability_id:
 
 async def create_capability(session: AsyncSession, merchant_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    payload = enrich_capability_payload(payload)
     await session.execute(
         text(
             """
