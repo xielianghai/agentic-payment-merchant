@@ -119,11 +119,14 @@ async def _verify_card_vi_network(
       load_credential,
       resolve_card_vi_for_issue,
   )
+  from vi_unified.logging import vi_debug, vi_log
   from vi_unified.network_mock import mock_mastercard_network_verify
 
   if not is_vi_enabled():
+    vi_log("mpp_vi_skipped", reason="vi_disabled", payment_token=payment_token)
     return None
   if (payment_token or "").strip() == "startup_probe":
+    vi_debug("mpp_vi_skipped", reason="startup_probe", payment_token=payment_token)
     return None
   entry = _load_token_entry(payment_token)
   vi_l2 = str(entry.get("vi_l2_credential_id", "")).strip()
@@ -142,6 +145,13 @@ async def _verify_card_vi_network(
       or not load_credential(vi_l2)
       or not load_credential(vi_l3)
   ):
+    vi_log(
+        "mpp_vi_fallback_resolve",
+        payment_token=payment_token,
+        token_l2=vi_l2 or None,
+        token_l3=vi_l3 or None,
+        amount_cents=amount_cents,
+    )
     resolved = resolve_card_vi_for_issue(
         vi_l2_credential_id=vi_l2,
         vi_l3_credential_id=vi_l3,
@@ -155,6 +165,12 @@ async def _verify_card_vi_network(
         presence_mode=presence_mode,
     )
     if resolved.get("error"):
+      vi_log(
+          "mpp_vi_fallback_failed",
+          payment_token=payment_token,
+          error=resolved.get("error"),
+          message=resolved.get("message"),
+      )
       return {
           "error": "vi_network_verification_failed",
           "message": resolved.get("message", "VI network verification failed."),
@@ -162,6 +178,12 @@ async def _verify_card_vi_network(
     vi_l2 = str(resolved.get("vi_l2_credential_id", "")).strip()
     vi_l3 = str(resolved.get("vi_l3_credential_id", "")).strip()
     if vi_l2 and vi_l3:
+      vi_log(
+          "mpp_vi_fallback_ok",
+          payment_token=payment_token,
+          l2_id=vi_l2,
+          l3_id=vi_l3,
+      )
       _persist_token_vi_metadata(
           payment_token,
           vi_l2_credential_id=vi_l2,
@@ -169,10 +191,23 @@ async def _verify_card_vi_network(
       )
 
   if not vi_l2 or not vi_l3:
+    vi_log(
+        "mpp_vi_missing_refs",
+        payment_token=payment_token,
+        l2_id=vi_l2 or None,
+        l3_id=vi_l3 or None,
+    )
     return {
         "error": "vi_network_verification_failed",
         "message": "card payment token is missing VI credential references.",
     }
+  vi_log(
+      "mpp_network_check",
+      payment_token=payment_token,
+      l2_id=vi_l2,
+      l3_id=vi_l3,
+      amount_cents=amount_cents,
+  )
   network = mock_mastercard_network_verify(
       payment_token=payment_token,
       vi_l2_credential_id=vi_l2,
@@ -248,6 +283,19 @@ async def initiate_or_settle_payment(
         checkout_jwt_hash,
         open_checkout_hash,
     )
+    if isinstance(result, dict) and result.get("vi_network"):
+      vn = result["vi_network"]
+      if isinstance(vn, dict):
+        from vi_unified.logging import vi_log
+
+        vi_log(
+            "mpp_settle_vi_network",
+            payment_token=payment_token,
+            auth_code=vn.get("auth_code"),
+            decision=vn.get("decision"),
+            l2_id=vn.get("vi_l2_credential_id"),
+            l3_id=vn.get("vi_l3_credential_id"),
+        )
     log_op_result(_logger, "mpp", "initiate_or_settle_payment", result, method=method)
     return result
 

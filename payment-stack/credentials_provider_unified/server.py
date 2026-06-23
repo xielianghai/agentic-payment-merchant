@@ -162,10 +162,19 @@ def _resolve_card_vi_for_issue(
 ) -> tuple[str, str, dict[str, Any] | None]:
   """Auto-resolve real VI credentials when agent omits or passes placeholder ids."""
   from vi_unified.credentials import is_vi_enabled, resolve_card_vi_for_issue
+  from vi_unified.logging import vi_log
 
   if payment_method != "card" or not is_vi_enabled():
     return vi_l2_credential_id, vi_l3_credential_id, None
 
+  vi_log(
+      "cp_resolve_start",
+      input_l2=vi_l2_credential_id,
+      input_l3=vi_l3_credential_id,
+      amount_cents=amount_cents,
+      payment_mandate_chain_id=payment_mandate_chain_id,
+      presence_mode=presence_mode,
+  )
   resolved = resolve_card_vi_for_issue(
       vi_l2_credential_id=vi_l2_credential_id,
       vi_l3_credential_id=vi_l3_credential_id,
@@ -179,7 +188,18 @@ def _resolve_card_vi_for_issue(
       presence_mode=presence_mode,
   )
   if resolved.get("error"):
+    vi_log(
+        "cp_resolve_failed",
+        error=resolved.get("error"),
+        message=resolved.get("message"),
+    )
     return vi_l2_credential_id, vi_l3_credential_id, resolved
+  vi_log(
+      "cp_resolve_ok",
+      l2_id=str(resolved.get("vi_l2_credential_id", "")),
+      l3_id=str(resolved.get("vi_l3_credential_id", "")),
+      amount_cents=amount_cents,
+  )
   return (
       str(resolved.get("vi_l2_credential_id", "")),
       str(resolved.get("vi_l3_credential_id", "")),
@@ -471,6 +491,18 @@ def _issue_payment_credential_hp(
       dict.fromkeys([token, reference], token_data)
   )
   _save_token_store(store)
+  if payment_method == "card":
+    from vi_unified.logging import vi_log
+
+    vi_log(
+        "cp_issue_token",
+        payment_token=token,
+        l2_id=vi_l2_credential_id,
+        l3_id=vi_l3_credential_id,
+        amount_cents=token_data["amount_cents"],
+        payment_mandate_chain_id=payment_mandate_chain_id,
+        presence_mode="hp",
+    )
   return {
       "payment_token": token,
       "expires_at": expires_at,

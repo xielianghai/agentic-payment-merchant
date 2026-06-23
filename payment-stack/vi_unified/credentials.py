@@ -174,6 +174,16 @@ def issue_l2_intent_credential(
         "session_id": payload.get("session_id", ""),
     }
     _persist_credential(record)
+    from vi_unified.logging import vi_log
+
+    vi_log(
+        "issue_l2",
+        credential_id=credential_id,
+        session_id=payload.get("session_id", ""),
+        amount_cents=payload.get("amount_cents"),
+        payment_method=payload.get("payment_method"),
+        intent_hash=ihash,
+    )
     return {
         "vi_l2_credential_id": credential_id,
         "intent_hash": ihash,
@@ -269,6 +279,14 @@ def ensure_l2_credential_id_for_amount(
             if l2:
                 ok, _msg = _verify_l2_record(l2)
                 if ok:
+                    from vi_unified.logging import vi_log
+
+                    vi_log(
+                        "ensure_l2_reuse",
+                        credential_id=cred_id,
+                        amount_cents=target_amount,
+                        session_id=session_id,
+                    )
                     return cred_id
 
         if not refresh_expired:
@@ -297,6 +315,14 @@ def ensure_l2_credential_id_for_amount(
             json.dumps(approvals, indent=2),
             encoding="utf-8",
         )
+        from vi_unified.logging import vi_log
+
+        vi_log(
+            "ensure_l2_refresh",
+            credential_id=new_id,
+            amount_cents=target_amount,
+            session_id=session_id,
+        )
         return new_id
     return ""
 
@@ -317,10 +343,24 @@ def resolve_card_vi_for_issue(
     presence_mode: str = "hp",
 ) -> dict[str, Any]:
     """Resolve or mint valid VI L2/L3 for card credential issuance."""
+    from vi_unified.logging import vi_debug, vi_log
+
     if not is_vi_enabled():
+        vi_debug("resolve_skipped", reason="vi_disabled")
         return {"vi_l2_credential_id": "", "vi_l3_credential_id": ""}
     if (payment_method or "").strip().lower() != "card":
+        vi_debug("resolve_skipped", reason="not_card")
         return {"vi_l2_credential_id": "", "vi_l3_credential_id": ""}
+
+    input_l2 = vi_l2_credential_id
+    input_l3 = vi_l3_credential_id
+    vi_debug(
+        "resolve_start",
+        input_l2=input_l2,
+        input_l3=input_l3,
+        amount_cents=amount_cents,
+        payment_mandate_chain_id=payment_mandate_chain_id,
+    )
 
     l2_id = (vi_l2_credential_id or "").strip()
     l3_id = (vi_l3_credential_id or "").strip()
@@ -342,6 +382,12 @@ def resolve_card_vi_for_issue(
             payment_nonce=payment_nonce,
         )
         if chain_err is None:
+            vi_log(
+                "resolve_reuse_chain",
+                l2_id=l2_id,
+                l3_id=l3_id,
+                amount_cents=amount_cents,
+            )
             return {"vi_l2_credential_id": l2_id, "vi_l3_credential_id": l3_id}
 
     if not l2_id:
@@ -369,9 +415,23 @@ def resolve_card_vi_for_issue(
         presence_mode=presence_mode,
     )
     if bundle.get("error"):
+        vi_log(
+            "resolve_failed",
+            error=bundle.get("error"),
+            message=bundle.get("message"),
+            amount_cents=amount_cents,
+        )
         return bundle
     if bundle.get("skipped"):
         return {"vi_l2_credential_id": "", "vi_l3_credential_id": ""}
+    vi_log(
+        "resolve_mint_l3",
+        l2_id=str(bundle.get("vi_l2_credential_id", "")),
+        l3_id=str(bundle.get("vi_l3_credential_id", "")),
+        amount_cents=amount_cents,
+        input_l2=input_l2,
+        input_l3=input_l3,
+    )
     return {
         "vi_l2_credential_id": str(bundle.get("vi_l2_credential_id", "")),
         "vi_l3_credential_id": str(bundle.get("vi_l3_credential_id", "")),
@@ -442,6 +502,17 @@ def issue_l3_action_credential(
         "expires_at": now + VI_TTL_SECONDS,
     }
     _persist_credential(record)
+    from vi_unified.logging import vi_log
+
+    vi_log(
+        "issue_l3",
+        credential_id=credential_id,
+        l2_id=vi_l2_credential_id,
+        amount_cents=amount_cents,
+        currency=currency,
+        payment_mandate_chain_id=payment_mandate_chain_id,
+        payment_nonce=payment_nonce,
+    )
     return {
         "vi_l3_credential_id": credential_id,
         "vi_l2_credential_id": vi_l2_credential_id,
@@ -594,26 +665,44 @@ def verify_vi_chain_for_payment(
     payment_nonce: str,
 ) -> dict[str, Any] | None:
     """Return error dict if VI chain invalid; None if ok or VI disabled."""
+    from vi_unified.logging import vi_debug, vi_log
+
     if not is_vi_enabled():
+        vi_debug("verify_skipped", reason="vi_disabled")
         return None
     if (payment_method or "").strip().lower() != "card":
+        vi_debug("verify_skipped", reason="not_card")
         return None
     if not vi_l2_credential_id or not vi_l3_credential_id:
+        vi_log(
+            "verify_failed",
+            stage="credentials_required",
+            l2_id=vi_l2_credential_id,
+            l3_id=vi_l3_credential_id,
+        )
         return {
             "error": "vi_credentials_required",
             "message": "card payments require vi_l2_credential_id and vi_l3_credential_id.",
         }
     l2 = load_credential(vi_l2_credential_id)
     if not l2:
+        vi_log("verify_failed", stage="l2_not_found", l2_id=vi_l2_credential_id)
         return {
             "error": "vi_l2_not_found",
             "message": f"VI L2 credential {vi_l2_credential_id!r} not found.",
         }
     l2_ok, l2_msg = _verify_l2_record(l2)
     if not l2_ok:
+        vi_log(
+            "verify_failed",
+            stage="l2_invalid",
+            l2_id=vi_l2_credential_id,
+            message=l2_msg,
+        )
         return {"error": "vi_l2_invalid", "message": l2_msg}
     l3 = load_credential(vi_l3_credential_id)
     if not l3:
+        vi_log("verify_failed", stage="l3_not_found", l3_id=vi_l3_credential_id)
         return {
             "error": "vi_l3_not_found",
             "message": f"VI L3 credential {vi_l3_credential_id!r} not found.",
@@ -630,5 +719,18 @@ def verify_vi_chain_for_payment(
         payment_nonce=payment_nonce,
     )
     if not l3_ok:
+        vi_log(
+            "verify_failed",
+            stage="l3_invalid",
+            l3_id=vi_l3_credential_id,
+            message=l3_msg,
+        )
         return {"error": "vi_l3_invalid", "message": l3_msg}
+    vi_log(
+        "verify_chain_ok",
+        l2_id=vi_l2_credential_id,
+        l3_id=vi_l3_credential_id,
+        amount_cents=amount_cents,
+        payment_mandate_chain_id=payment_mandate_chain_id,
+    )
     return None

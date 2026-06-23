@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from vi_unified.credentials import load_credential, verify_vi_chain_for_payment
+from vi_unified.logging import vi_log
 
 
 def mock_mastercard_network_verify(
@@ -24,6 +25,14 @@ def mock_mastercard_network_verify(
     merchant_id: str = "",
 ) -> dict[str, Any]:
     """Simulate Mastercard network/issuer VI proof check before card settlement."""
+    vi_log(
+        "network_verify_start",
+        payment_token=payment_token,
+        l2_id=vi_l2_credential_id,
+        l3_id=vi_l3_credential_id,
+        amount_cents=amount_cents,
+        currency=currency,
+    )
     vi_err = verify_vi_chain_for_payment(
         vi_l2_credential_id=vi_l2_credential_id,
         vi_l3_credential_id=vi_l3_credential_id,
@@ -36,6 +45,12 @@ def mock_mastercard_network_verify(
         payment_nonce=payment_nonce,
     )
     if vi_err:
+        vi_log(
+            "network_verify_failed",
+            payment_token=payment_token,
+            error=vi_err.get("error"),
+            message=vi_err.get("message"),
+        )
         return {
             "error": "vi_network_verification_failed",
             "network": "mastercard_mock",
@@ -46,6 +61,15 @@ def mock_mastercard_network_verify(
 
     l3 = load_credential(vi_l3_credential_id) or {}
     auth_code = "MCVI-" + secrets.token_hex(3).upper()
+    vi_log(
+        "network_verify_ok",
+        payment_token=payment_token,
+        auth_code=auth_code,
+        l2_id=vi_l2_credential_id,
+        l3_id=vi_l3_credential_id,
+        amount_cents=amount_cents,
+        l2_intent_hash=l3.get("l2_intent_hash"),
+    )
     return {
         "network": "mastercard_mock",
         "decision": "approved",
