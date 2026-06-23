@@ -11,13 +11,14 @@ import {
 import { StatusTag } from '@/components/StatusTag'
 import { JsonPreview } from '@/components/JsonPreview'
 import type { ReconciliationRun } from '@/services/api'
+import { formatLocalDateTime } from '@/utils/formatDateTime'
 
 interface Props {
   merchantId: string
 }
 
 export function ReconciliationPage({ merchantId }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { message } = AntdApp.useApp()
   const queryClient = useQueryClient()
   const [selectedRun, setSelectedRun] = useState<ReconciliationRun | null>(null)
@@ -46,7 +47,12 @@ export function ReconciliationPage({ merchantId }: Props) {
     { title: t('reconciliation.matched'), dataIndex: 'matched_items', key: 'matched_items' },
     { title: t('reconciliation.mismatch'), dataIndex: 'mismatch_items', key: 'mismatch_items' },
     { title: t('reconciliation.mandateFail'), dataIndex: 'mandate_verify_fail_count', key: 'mandate_fail' },
-    { title: t('reconciliation.completedAt'), dataIndex: 'completed_at', key: 'completed_at' },
+    {
+      title: t('reconciliation.completedAt'),
+      dataIndex: 'completed_at',
+      key: 'completed_at',
+      render: (value: string) => formatLocalDateTime(value, i18n.language === 'zh' ? 'zh-CN' : 'en-US'),
+    },
     {
       title: t('reconciliation.actions'),
       key: 'actions',

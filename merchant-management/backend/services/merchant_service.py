@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import get_settings
 from services.audit_service import log_operation
 from services.common import dumps, loads, rows, one
+from services.platform_urls import normalize_jwks_url
 
 STATUS_PENDING = "PENDING"
 STATUS_ACTIVE = "ACTIVE"
@@ -46,6 +47,7 @@ async def list_merchants(session: AsyncSession, status: str | None = None) -> li
     for row in result:
         row["protocols"] = loads(row.get("protocols"))
         row["capabilities_json"] = loads(row.get("capabilities_json"))
+        row["jwks_url"] = normalize_jwks_url(row.get("jwks_url"), row["id"])
     return result
 
 
@@ -55,6 +57,7 @@ async def get_merchant(session: AsyncSession, merchant_id: str) -> dict[str, Any
         return None
     row["protocols"] = loads(row.get("protocols"))
     row["capabilities_json"] = loads(row.get("capabilities_json"))
+    row["jwks_url"] = normalize_jwks_url(row.get("jwks_url"), row["id"])
     return row
 
 

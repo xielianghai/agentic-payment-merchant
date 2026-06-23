@@ -222,7 +222,9 @@ export const registerTrustKey = (id: string) => unwrap<TrustKey>(api.post(`/admi
 export const rotateTrustKey = (id: string, actor = 'merchant') =>
   unwrap<TrustKey>(api.post(`/admin/merchants/${id}/trust/keys/rotate`, null, { params: { actor } }))
 export const verifyTrustKey = (id: string, kid: string) =>
-  unwrap<TrustKey>(api.post(`/admin/merchants/${id}/trust/keys/${kid}/verify`))
+  unwrap<TrustKey>(api.post(`/admin/merchants/${id}/trust/keys/${encodeURIComponent(kid)}/verify`))
+export const deleteTrustKey = (id: string, kid: string) =>
+  unwrap<null>(api.delete(`/admin/merchants/${id}/trust/keys/${encodeURIComponent(kid)}`))
 export const getExpiryAlerts = (merchantId?: string) =>
   unwrap<TrustKey[]>(api.get('/admin/trust/expiry-alerts', { params: { merchant_id: merchantId } }))
 export const getCertificates = (id: string) =>
@@ -230,7 +232,9 @@ export const getCertificates = (id: string) =>
 export const issueCertificate = (id: string, subjectCn?: string) =>
   unwrap<Certificate>(api.post(`/admin/merchants/${id}/certificates/issue`, { subject_cn: subjectCn }))
 export const revokeCertificate = (id: string, serialNo: string, reason?: string) =>
-  unwrap<Certificate>(api.post(`/admin/merchants/${id}/certificates/${serialNo}/revoke`, { reason }))
+  unwrap<Certificate>(api.post(`/admin/merchants/${id}/certificates/${encodeURIComponent(serialNo)}/revoke`, { reason }))
+export const deleteCertificate = (id: string, serialNo: string) =>
+  unwrap<null>(api.delete(`/admin/merchants/${id}/certificates/${encodeURIComponent(serialNo)}`))
 export const refreshCertAlerts = (merchantId?: string) =>
   unwrap<Certificate[]>(api.post('/admin/certificates/refresh-alerts', null, { params: { merchant_id: merchantId } }))
 export const getTransactions = (id: string, params?: Record<string, string | number>) =>

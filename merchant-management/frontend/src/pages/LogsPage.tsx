@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getOperationLogs } from '@/services/api'
 import { JsonPreview } from '@/components/JsonPreview'
+import { formatLocalDateTime } from '@/utils/formatDateTime'
 import type { OperationLog } from '@/services/api'
 
 interface Props {
@@ -11,7 +12,7 @@ interface Props {
 }
 
 export function LogsPage({ merchantId }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [actionFilter, setActionFilter] = useState<string | undefined>()
   const [selected, setSelected] = useState<OperationLog | null>(null)
 
@@ -24,7 +25,12 @@ export function LogsPage({ merchantId }: Props) {
     { title: t('logs.action'), dataIndex: 'action', key: 'action' },
     { title: t('logs.merchant'), dataIndex: 'merchant_id', key: 'merchant_id' },
     { title: t('logs.actor'), dataIndex: 'actor', key: 'actor' },
-    { title: t('logs.time'), dataIndex: 'created_at', key: 'created_at' },
+    {
+      title: t('logs.time'),
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (value: string) => formatLocalDateTime(value, i18n.language === 'zh' ? 'zh-CN' : 'en-US'),
+    },
   ]
 
   return (

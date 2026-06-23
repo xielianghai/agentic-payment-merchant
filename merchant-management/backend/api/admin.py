@@ -282,6 +282,18 @@ async def verify_key(
     return {"code": "ok", "data": data}
 
 
+@router.delete("/merchants/{merchant_id}/trust/keys/{kid}")
+async def delete_key(
+    merchant_id: str, kid: str, session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    try:
+        await trust_svc.delete_key(session, merchant_id, kid)
+    except ValueError as exc:
+        status = 404 if str(exc) == "Key not found" else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return {"code": "ok", "data": None, "message": "Key deleted successfully"}
+
+
 @router.get("/trust/expiry-alerts")
 async def expiry_alerts(
     merchant_id: str | None = Query(None),
@@ -313,6 +325,18 @@ async def revoke_certificate(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     return {"code": "ok", "data": await cert_svc.revoke_certificate(session, merchant_id, serial_no, body.reason)}
+
+
+@router.delete("/merchants/{merchant_id}/certificates/{serial_no}")
+async def delete_certificate(
+    merchant_id: str, serial_no: str, session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    try:
+        await cert_svc.delete_certificate(session, merchant_id, serial_no)
+    except ValueError as exc:
+        status = 404 if str(exc) == "Certificate not found" else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return {"code": "ok", "data": None, "message": "Certificate deleted successfully"}
 
 
 @router.post("/certificates/refresh-alerts")

@@ -6,13 +6,14 @@ import { getTransactions } from '@/services/api'
 import { StatusTag } from '@/components/StatusTag'
 import { JsonPreview } from '@/components/JsonPreview'
 import type { Transaction } from '@/services/api'
+import { formatLocalDateTime } from '@/utils/formatDateTime'
 
 interface Props {
   merchantId: string
 }
 
 export function TransactionsPage({ merchantId }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [status, setStatus] = useState<string | undefined>()
   const [selected, setSelected] = useState<Transaction | null>(null)
 
@@ -33,7 +34,12 @@ export function TransactionsPage({ merchantId }: Props) {
       render: (s: string) => <StatusTag status={s} />,
     },
     { title: t('transactions.auditIndex'), dataIndex: 'audit_index', key: 'audit_index' },
-    { title: t('transactions.occurredAt'), dataIndex: 'occurred_at', key: 'occurred_at' },
+    {
+      title: t('transactions.occurredAt'),
+      dataIndex: 'occurred_at',
+      key: 'occurred_at',
+      render: (value: string) => formatLocalDateTime(value, i18n.language === 'zh' ? 'zh-CN' : 'en-US'),
+    },
   ]
 
   return (

@@ -91,6 +91,28 @@ async def revoke_certificate(
     ) or {}
 
 
+async def delete_certificate(session: AsyncSession, merchant_id: str, serial_no: str) -> None:
+    row = await one(
+        session,
+        "SELECT * FROM merchant_certificates WHERE merchant_id=:merchant_id AND serial_no=:serial_no",
+        {"merchant_id": merchant_id, "serial_no": serial_no},
+    )
+    if not row:
+        raise ValueError("Certificate not found")
+    if row["status"] != "REVOKED":
+        raise ValueError("Only revoked certificates can be deleted")
+    await session.execute(
+        text("DELETE FROM merchant_certificates WHERE merchant_id=:merchant_id AND serial_no=:serial_no"),
+        {"merchant_id": merchant_id, "serial_no": serial_no},
+    )
+    await log_operation(
+        session,
+        "certificate.deleted",
+        merchant_id=merchant_id,
+        detail={"serial_no": serial_no},
+    )
+
+
 async def refresh_alerts(session: AsyncSession, merchant_id: str | None = None) -> list[dict[str, Any]]:
     certs = await rows(
         session,

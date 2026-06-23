@@ -13,6 +13,7 @@ import {
   type Merchant,
 } from '@/services/api'
 import { StatusTag } from '@/components/StatusTag'
+import { formatLocalDateTime } from '@/utils/formatDateTime'
 
 interface Props {
   merchantId: string
@@ -21,7 +22,7 @@ interface Props {
 }
 
 export function OnboardingPage({ merchantId, onMerchantCreated, onCreateModeChange }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { message } = AntdApp.useApp()
   const queryClient = useQueryClient()
   const [form] = Form.useForm()
@@ -263,7 +264,9 @@ export function OnboardingPage({ merchantId, onMerchantCreated, onCreateModeChan
               <Descriptions.Item label={t('onboarding.contractVersion')}>{contract.template_version}</Descriptions.Item>
               <Descriptions.Item label={t('onboarding.status')}><StatusTag status={contract.status} /></Descriptions.Item>
               {contract.signed_at && (
-                <Descriptions.Item label={t('onboarding.signedAt')}>{contract.signed_at}</Descriptions.Item>
+                <Descriptions.Item label={t('onboarding.signedAt')}>
+                  {formatLocalDateTime(contract.signed_at, i18n.language === 'zh' ? 'zh-CN' : 'en-US')}
+                </Descriptions.Item>
               )}
             </Descriptions>
           )}
@@ -294,7 +297,9 @@ export function OnboardingPage({ merchantId, onMerchantCreated, onCreateModeChan
               <Space>
                 <StatusTag status={task.status} />
                 <Typography.Text strong>{task.step}</Typography.Text>
-                <Typography.Text type="secondary">{task.created_at}</Typography.Text>
+                <Typography.Text type="secondary">
+                  {formatLocalDateTime(task.created_at, i18n.language === 'zh' ? 'zh-CN' : 'en-US')}
+                </Typography.Text>
               </Space>
             </div>
           ))}

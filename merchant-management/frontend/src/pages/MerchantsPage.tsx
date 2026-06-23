@@ -154,7 +154,15 @@ export function MerchantsPage({ onNavigateToOnboarding, selectedMerchantId, onMe
             <p><strong>{t('merchants.status')}:</strong> <StatusTag status={detailQuery.data.status} /></p>
             <p><strong>A2A:</strong> {detailQuery.data.a2a_endpoint}</p>
             <p><strong>UCP:</strong> {detailQuery.data.ucp_profile_url}</p>
-            <p><strong>JWKS:</strong> {detailQuery.data.jwks_url}</p>
+            <p><strong>JWKS:</strong>{' '}
+              {detailQuery.data.jwks_url?.startsWith('http') ? (
+                <a href={detailQuery.data.jwks_url} target="_blank" rel="noreferrer">
+                  {detailQuery.data.jwks_url}
+                </a>
+              ) : (
+                detailQuery.data.jwks_url
+              )}
+            </p>
             <JsonPreview value={detailQuery.data.capabilities_json} />
           </div>
         )}

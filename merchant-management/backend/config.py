@@ -26,12 +26,22 @@ class Settings(BaseSettings):
 
     api_host: str = "127.0.0.1"
     api_port: int = 9100
+    api_public_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("API_PUBLIC_BASE_URL", "MM_PUBLIC_BASE_URL"),
+    )
     log_level: str = "INFO"
 
     heg_flight_backend_url: str = "http://127.0.0.1:9000"
     heg_a2a_endpoint: str = "http://127.0.0.1:9000/a2a/heg_merchant_agent"
     heg_mcp_server_path: str = "/Users/ouyang/AI-coding/payment/heg_flight_mock/mcp/server.py"
     adapter_base_url: str = "http://127.0.0.1:8200"
+
+    @property
+    def api_base_url(self) -> str:
+        if self.api_public_base_url:
+            return self.api_public_base_url.rstrip("/")
+        return f"http://{self.api_host}:{self.api_port}"
 
     @property
     def database_url(self) -> str:

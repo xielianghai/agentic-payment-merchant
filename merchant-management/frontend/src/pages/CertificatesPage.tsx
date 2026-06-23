@@ -1,22 +1,33 @@
-import { App as AntdApp, Alert, Button, Card, Space, Table } from 'antd'
+import { App as AntdApp, Alert, Button, Card, Popconfirm, Space, Table } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { getCertificates, issueCertificate, refreshCertAlerts, revokeCertificate } from '@/services/api'
+import {
+  deleteCertificate,
+  getCertificates,
+  issueCertificate,
+  refreshCertAlerts,
+  revokeCertificate,
+} from '@/services/api'
 import { StatusTag } from '@/components/StatusTag'
 import type { Certificate } from '@/services/api'
+import { formatLocalDateTime } from '@/utils/formatDateTime'
 
 interface Props {
   merchantId: string
 }
 
 export function CertificatesPage({ merchantId }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { message } = AntdApp.useApp()
   const queryClient = useQueryClient()
 
   const certsQuery = useQuery({ queryKey: ['certificates', merchantId], queryFn: () => getCertificates(merchantId) })
 
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['certificates', merchantId] })
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['certificates', merchantId] })
+    void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    void queryClient.invalidateQueries({ queryKey: ['logs'] })
+  }
 
   const issueMutation = useMutation({
     mutationFn: () => issueCertificate(merchantId),
@@ -25,6 +36,14 @@ export function CertificatesPage({ merchantId }: Props) {
   const revokeMutation = useMutation({
     mutationFn: (serialNo: string) => revokeCertificate(merchantId, serialNo),
     onSuccess: () => { message.success(t('certificates.revoked')); invalidate() },
+  })
+  const deleteMutation = useMutation({
+    mutationFn: (serialNo: string) => deleteCertificate(merchantId, serialNo),
+    onSuccess: (_data, serialNo) => {
+      message.success(t('certificates.deleteSuccess', { serial: serialNo }))
+      invalidate()
+    },
+    onError: (err: Error) => message.error(err.message),
   })
   const refreshMutation = useMutation({
     mutationFn: () => refreshCertAlerts(merchantId),
@@ -49,14 +68,38 @@ export function CertificatesPage({ merchantId }: Props) {
       key: 'alert_status',
       render: (s: string) => <StatusTag status={s} />,
     },
-    { title: t('certificates.notAfter'), dataIndex: 'not_after', key: 'not_after' },
+    {
+      title: t('certificates.notAfter'),
+      dataIndex: 'not_after',
+      key: 'not_after',
+      render: (value: string) => formatLocalDateTime(value, i18n.language === 'zh' ? 'zh-CN' : 'en-US'),
+    },
     {
       title: t('certificates.actions'),
       key: 'actions',
       render: (_: unknown, row: Certificate) => (
-        <Button size="small" danger disabled={row.status === 'REVOKED'} onClick={() => revokeMutation.mutate(row.serial_no)}>
-          {t('certificates.revoke')}
-        </Button>
+        <Space wrap>
+          <Button
+            size="small"
+            danger
+            disabled={row.status === 'REVOKED'}
+            onClick={() => revokeMutation.mutate(row.serial_no)}
+          >
+            {t('certificates.revoke')}
+          </Button>
+          {row.status === 'REVOKED' && (
+            <Popconfirm
+              title={t('certificates.deleteConfirmTitle')}
+              description={t('certificates.deleteConfirmDesc', { serial: row.serial_no })}
+              okText={t('certificates.deleteConfirmOk')}
+              cancelText={t('common.cancel')}
+              okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
+              onConfirm={() => deleteMutation.mutate(row.serial_no)}
+            >
+              <Button size="small" danger>{t('certificates.delete')}</Button>
+            </Popconfirm>
+          )}
+        </Space>
       ),
     },
   ]

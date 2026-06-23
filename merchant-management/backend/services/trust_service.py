@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.audit_service import log_operation
 from services.common import dumps, loads, one, rows
+from services.platform_urls import platform_jwks_url
 
 
 def _hydrate(row: dict[str, Any]) -> dict[str, Any]:
@@ -70,7 +71,7 @@ async def register_key(session: AsyncSession, merchant_id: str, actor: str = "ad
     )
     await session.execute(
         text("UPDATE merchants SET jwks_url=:url WHERE id=:id"),
-        {"id": merchant_id, "url": f"/api/v1/admin/merchants/{merchant_id}/trust/jwks"},
+        {"id": merchant_id, "url": platform_jwks_url(merchant_id)},
     )
     await log_operation(session, "trust.key.registered", merchant_id=merchant_id, actor=actor, detail={"kid": kid})
     row = await one(
@@ -121,6 +122,23 @@ async def verify_key(session: AsyncSession, merchant_id: str, kid: str) -> dict[
         {"merchant_id": merchant_id, "kid": kid},
     )
     return _hydrate(updated) if updated else {}
+
+
+async def delete_key(session: AsyncSession, merchant_id: str, kid: str) -> None:
+    row = await one(
+        session,
+        "SELECT * FROM merchant_trust_keys WHERE merchant_id=:merchant_id AND kid=:kid",
+        {"merchant_id": merchant_id, "kid": kid},
+    )
+    if not row:
+        raise ValueError("Key not found")
+    if row["status"] != "ROTATED":
+        raise ValueError("Only rotated keys can be deleted")
+    await session.execute(
+        text("DELETE FROM merchant_trust_keys WHERE merchant_id=:merchant_id AND kid=:kid"),
+        {"merchant_id": merchant_id, "kid": kid},
+    )
+    await log_operation(session, "trust.key.deleted", merchant_id=merchant_id, detail={"kid": kid})
 
 
 async def list_expiry_alerts(session: AsyncSession, merchant_id: str | None = None) -> list[dict[str, Any]]:

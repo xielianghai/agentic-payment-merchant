@@ -2,6 +2,7 @@ import { Card, Col, Row, Statistic, Table } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { getDashboard, getOperationLogs } from '@/services/api'
+import { formatLocalDateTime } from '@/utils/formatDateTime'
 
 interface Props {
   merchantId: string
@@ -30,8 +31,8 @@ const DASHBOARD_CARDS: ReadonlyArray<{
   { labelKey: 'dashboard.onboardingPending', dataKey: 'onboarding_pending', tone: 'warning' },
 ]
 
-export function DashboardPage({ merchantId }: Props) {
-  const { t } = useTranslation()
+export function DashboardPage({ merchantId: _merchantId }: Props) {
+  const { t, i18n } = useTranslation()
   const dashboardQuery = useQuery({ queryKey: ['dashboard'], queryFn: getDashboard })
   const logsQuery = useQuery({ queryKey: ['logs', 'recent'], queryFn: () => getOperationLogs({ limit: 8 }) })
 
@@ -65,7 +66,12 @@ export function DashboardPage({ merchantId }: Props) {
             { title: t('logs.action'), dataIndex: 'action', key: 'action' },
             { title: t('logs.merchant'), dataIndex: 'merchant_id', key: 'merchant_id' },
             { title: t('logs.actor'), dataIndex: 'actor', key: 'actor' },
-            { title: t('logs.time'), dataIndex: 'created_at', key: 'created_at' },
+            {
+              title: t('logs.time'),
+              dataIndex: 'created_at',
+              key: 'created_at',
+              render: (value: string) => formatLocalDateTime(value, i18n.language === 'zh' ? 'zh-CN' : 'en-US'),
+            },
           ]}
         />
       </Card>
