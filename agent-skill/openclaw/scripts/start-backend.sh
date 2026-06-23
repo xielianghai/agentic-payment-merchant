@@ -48,7 +48,8 @@ MCP_PATH="${AP2_MCP_HTTP_PATH:-/mcp}"
 export TEMP_DB_DIR="$PAYMENT_STACK/.temp-db"
 export AP2_TS_H5="${AP2_TS_H5:-1}"
 export AP2_REQUIRE_OTP="${AP2_REQUIRE_OTP:-0}"
-export TS_BASE_URL="${TS_BASE_URL:-http://localhost:${UNIFIED_TRUSTED_SURFACE_PORT:-8104}}"
+TRUSTED_SURFACE_PORT="${UNIFIED_TRUSTED_SURFACE_PORT:-8104}"
+export TS_BASE_URL="${TS_BASE_URL:-http://localhost:${TRUSTED_SURFACE_PORT}}"
 mkdir -p "$TEMP_DB_DIR" "$LOG_DIR" "$OPENCLAW_RUN_DIR"
 
 if [ -f "$OPENCLAW_PID_FILE" ]; then
@@ -102,6 +103,18 @@ sleep 0.5
 start_mcp_http "mpp" "$ROLES_DIR/merchant_payment_processor_unified/server.py" "$MPP_MCP_PORT"
 sleep 1
 
+if ! lsof -ti tcp:"$TRUSTED_SURFACE_PORT" >/dev/null 2>&1; then
+  demo_kill_port "$TRUSTED_SURFACE_PORT"
+  echo "Starting Trusted Surface (port ${TRUSTED_SURFACE_PORT})..."
+  (
+    cd "$ROLES_DIR/trusted_surface_unified" &&
+    TEMP_DB_DIR="$TEMP_DB_DIR" TS_BASE_URL="$TS_BASE_URL" \
+      "${UV_RUN_ARR[@]}" python server.py
+  ) >>"$LOG_DIR/trusted-surface.log" 2>&1 &
+  record_pid "$!"
+  sleep 0.5
+fi
+
 echo "Waiting for buyer MCP ports..."
 for port in "$BUYER_MCP_PORT" "$CP_MCP_PORT" "$MPP_MCP_PORT"; do
   if lsof -ti tcp:"$port" >/dev/null 2>&1; then
@@ -111,11 +124,18 @@ for port in "$BUYER_MCP_PORT" "$CP_MCP_PORT" "$MPP_MCP_PORT"; do
     exit 1
   fi
 done
+if lsof -ti tcp:"$TRUSTED_SURFACE_PORT" >/dev/null 2>&1; then
+  echo "  OK  port $TRUSTED_SURFACE_PORT (Trusted Surface)"
+else
+  echo "ERROR: Trusted Surface did not open on port $TRUSTED_SURFACE_PORT — check $LOG_DIR/trusted-surface.log" >&2
+  exit 1
+fi
 
 echo ""
 echo "HEG Flight buyer MCP is running."
 echo "  Buyer MCP: http://127.0.0.1:${BUYER_MCP_PORT}${MCP_PATH}"
 echo "  CP MCP:    http://127.0.0.1:${CP_MCP_PORT}${MCP_PATH}"
 echo "  MPP MCP:   http://127.0.0.1:${MPP_MCP_PORT}${MCP_PATH}"
+echo "  Trusted Surface: http://localhost:${TRUSTED_SURFACE_PORT}/"
 echo "  Pids:      $OPENCLAW_PID_FILE"
 echo "  Stop:      $SCRIPT_DIR/stop-backend.sh"

@@ -153,6 +153,29 @@ def execute_hnp_purchase(session_id: str, monitor: dict[str, Any]) -> dict[str, 
           "message": "Missing payment_mandate_chain_id.",
       }
 
+    vi_l2_id = str(bridge_ctx.state.get("vi:l2_credential_id", "")).strip()
+    vi_l3_id = ""
+    if pm == "card":
+      from vi_unified.credentials import prepare_card_vi_l3
+
+      vi_bundle = prepare_card_vi_l3(
+          session_id=sid,
+          vi_l2_credential_id=vi_l2_id,
+          payment_method=pm,
+          amount_cents=total_cents,
+          currency=str(cart.get("currency") or monitor.get("currency") or "USD"),
+          open_checkout_hash=open_checkout_hash
+          or str(checkout.get("open_checkout_hash", "")),
+          checkout_jwt_hash=str(checkout.get("checkout_jwt_hash", "")),
+          payment_mandate_chain_id=payment_mandate_chain_id,
+          payment_nonce=payment_nonce,
+          presence_mode="hnp",
+      )
+      if vi_bundle.get("error"):
+        return vi_bundle
+      vi_l2_id = str(vi_bundle.get("vi_l2_credential_id", ""))
+      vi_l3_id = str(vi_bundle.get("vi_l3_credential_id", ""))
+
     from credentials_provider_unified import server as cp_server
 
     cred = cp_server.issue_payment_credential(
@@ -162,6 +185,10 @@ def execute_hnp_purchase(session_id: str, monitor: dict[str, Any]) -> dict[str, 
         checkout_jwt_hash=str(checkout.get("checkout_jwt_hash", "")),
         payment_nonce=payment_nonce,
         presence_mode="hnp",
+        vi_l2_credential_id=vi_l2_id,
+        vi_l3_credential_id=vi_l3_id,
+        amount_cents=total_cents,
+        currency=str(cart.get("currency") or monitor.get("currency") or "USD"),
     )
     if isinstance(cred, dict) and cred.get("error"):
       return dict(cred)

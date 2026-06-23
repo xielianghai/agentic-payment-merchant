@@ -19,7 +19,10 @@ if str(_GATE_ROOT) not in sys.path:
 if str(_STACK_ROOT) not in sys.path:
   sys.path.insert(0, str(_STACK_ROOT))
 from path_setup import ensure_src_on_path  # noqa: E402
-from trusted_surface_gate import check_assemble_allowed  # noqa: E402
+from trusted_surface_gate import (  # noqa: E402
+    approval_vi_l2_credential_id,
+    check_assemble_allowed,
+)
 
 _V2_MANDATE_TOOLS_PATH = (
     ensure_src_on_path()
@@ -113,7 +116,23 @@ def assemble_and_sign_mandates_tool(
         "error": "mandate_request_invalid",
         "message": f"Cannot assemble mandates: {exc}",
     }
-  return _mt_module.assemble_and_sign_mandates_tool(mandate_request, tool_context)
+  result = _mt_module.assemble_and_sign_mandates_tool(mandate_request, tool_context)
+  if (
+      isinstance(result, dict)
+      and not result.get("error")
+      and str(tool_context.state.get("ap2:payment_method", "card")) == "card"
+  ):
+    sid = str(
+        session_id
+        or tool_context.state.get("app:session_id")
+        or tool_context.state.get("session_id")
+        or ""
+    )
+    l2_id = approval_vi_l2_credential_id(sid or None)
+    if l2_id:
+      tool_context.state["vi:l2_credential_id"] = l2_id
+      result["vi_l2_credential_id"] = l2_id
+  return result
 
 
 assemble_and_sign_mandates_tool.__doc__ = (

@@ -278,6 +278,7 @@ def _store_approval(
     item_name: str = "",
     *,
     amount_cents: int | None = None,
+    draft: dict[str, Any] | None = None,
 ) -> None:
   session_id = _canonical_session_id(session_id)
   if not session_id:
@@ -287,7 +288,7 @@ def _store_approval(
   key = _approval_key(payment_method=pm, amount_cents=cents)
   _ensure_loaded()
   display = (item_name or "").strip() or str(item_id)
-  _APPROVALS[session_id] = {
+  record: dict[str, Any] = {
       "approval_key": key,
       "amount_cents": cents,
       "item_id": str(item_id),
@@ -295,6 +296,23 @@ def _store_approval(
       "price_cap": cents / 100.0 if cents > 0 else float(price_cap),
       "payment_method": pm,
   }
+  if pm == "card" and isinstance(draft, dict):
+    try:
+      from vi_unified.credentials import issue_l2_intent_credential, is_vi_enabled
+
+      if is_vi_enabled():
+        l2_draft = dict(draft)
+        l2_draft.setdefault("session_id", session_id)
+        l2_draft.setdefault("payment_method", pm)
+        l2_draft.setdefault("amount_cents", cents)
+        l2_result = issue_l2_intent_credential(l2_draft, session_id=session_id)
+        l2_id = l2_result.get("vi_l2_credential_id")
+        if l2_id:
+          record["vi_l2_credential_id"] = str(l2_id)
+          record["vi_intent_hash"] = l2_result.get("intent_hash")
+    except Exception as exc:
+      _log.warning("[trusted-surface] VI L2 issuance failed: %s", exc)
+  _APPROVALS[session_id] = record
   _persist_approvals()
 
 
@@ -339,6 +357,17 @@ def register_mandate_approved_payload(payload: dict[str, Any]) -> None:
       payment,
       str(mr.get("item_id", "")),
       item_name=str(mr.get("item_name", "")),
+      draft={
+          "session_id": session_id,
+          "item_id": str(mr.get("item_id", "")),
+          "item_name": str(mr.get("item_name", "")),
+          "price_cap": price_cap,
+          "payment_method": payment,
+          "presence_mode": "hnp",
+          "constraints": mr.get("constraints")
+          if isinstance(mr.get("constraints"), dict)
+          else {},
+      },
   )
 
 
@@ -369,6 +398,15 @@ def register_immediate_checkout_approved_payload(payload: dict[str, Any]) -> Non
       str(payload.get("item_id", "")),
       item_name=str(payload.get("item_name", "")),
       amount_cents=cents,
+      draft={
+          "session_id": session_id,
+          "item_id": str(payload.get("item_id", "")),
+          "item_name": str(payload.get("item_name", "")),
+          "price_cap": cents / 100.0,
+          "amount_cents": cents,
+          "payment_method": payment,
+          "presence_mode": "hp",
+      },
   )
 
 
@@ -1033,9 +1071,12 @@ def confirm_trusted_surface_approval(
       str(draft.get("item_id", "")),
       item_name=str(draft.get("item_name", "")),
       amount_cents=draft_cents,
+      draft=draft,
   )
   record["status"] = "signed"
   record["signed_at"] = time.time()
+  if sid and _APPROVALS.get(sid, {}).get("vi_l2_credential_id"):
+    record["vi_l2_credential_id"] = _APPROVALS[sid]["vi_l2_credential_id"]
   _persist_sessions()
   _ensure_openclaw_woken(sid, rid)
   return {
@@ -1046,9 +1087,21 @@ def confirm_trusted_surface_approval(
           payment_method=str(draft.get("payment_method", "card")),
           amount_cents=draft_cents,
       ),
+      "vi_l2_credential_id": _APPROVALS.get(sid, {}).get("vi_l2_credential_id"),
       "message": "Trusted Surface approval recorded.",
   }
 
+
+def approval_vi_l2_credential_id(session_id: str | None = None) -> str | None:
+  """Return VI L2 credential id from the latest approval for this session."""
+  sid = _canonical_session_id(session_id or _current_session.get() or "")
+  if not sid:
+    return None
+  approval = approval_for_session(sid)
+  if not approval:
+    return None
+  cred = approval.get("vi_l2_credential_id")
+  return str(cred) if cred else None
 
 def check_assemble_allowed(
     price_cap: float,

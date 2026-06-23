@@ -133,6 +133,9 @@ def _mandate_binding_payload(draft: dict[str, Any]) -> dict[str, Any]:
       amount_cents = round(float(draft.get("price_cap", 0)) * 100)
     except (TypeError, ValueError):
       amount_cents = 0
+  constraints = draft.get("constraints")
+  if not isinstance(constraints, dict):
+    constraints = {}
   return {
       "item_id": str(draft.get("item_id", "")),
       "item_name": str(draft.get("item_name", "")),
@@ -141,6 +144,7 @@ def _mandate_binding_payload(draft: dict[str, Any]) -> dict[str, Any]:
       "payment_method": str(draft.get("payment_method", "card")),
       "presence_mode": str(draft.get("presence_mode", "hnp")),
       "payee": str(draft.get("payee", "")),
+      "constraints": constraints,
   }
 
 

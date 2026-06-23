@@ -214,6 +214,10 @@ async def main() -> None:
           checkout_jwt_hash=checkout_jwt_hash,
           payment_nonce=immediate["payment_nonce"],
           presence_mode="hp",
+          vi_l2_credential_id=immediate.get("vi_l2_credential_id", ""),
+          vi_l3_credential_id=immediate.get("vi_l3_credential_id", ""),
+          amount_cents=total_minor,
+          currency=str(cart.get("currency", "USD")),
       ),
   )
 

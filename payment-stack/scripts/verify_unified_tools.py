@@ -18,6 +18,7 @@ from pathlib import Path
 
 # Offline checks call assemble without HTTP / Trusted Surface UI.
 os.environ["AP2_DISABLE_TS_GATE"] = "1"
+os.environ["AP2_DISABLE_VI"] = "1"
 
 from google.adk.tools.function_tool import FunctionTool
 

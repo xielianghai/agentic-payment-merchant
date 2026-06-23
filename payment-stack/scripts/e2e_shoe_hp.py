@@ -197,16 +197,26 @@ async def main() -> None:
 
   from credentials_provider_unified import server as cp_server
 
+  cred_kwargs = {
+      "payment_method": PAYMENT_METHOD,
+      "payment_mandate_chain_id": immediate["payment_mandate_chain_id"],
+      "open_checkout_hash": open_m["open_checkout_hash"],
+      "checkout_jwt_hash": checkout_jwt_hash,
+      "payment_nonce": immediate["payment_nonce"],
+      "presence_mode": "hp",
+  }
+  if PAYMENT_METHOD == "card":
+    cred_kwargs.update(
+        {
+            "vi_l2_credential_id": immediate.get("vi_l2_credential_id", ""),
+            "vi_l3_credential_id": immediate.get("vi_l3_credential_id", ""),
+            "amount_cents": total_minor,
+            "currency": str(cart.get("currency", "USD")),
+        }
+    )
   cred = _step(
       "issue_payment_credential",
-      cp_server.issue_payment_credential(
-          payment_method=PAYMENT_METHOD,
-          payment_mandate_chain_id=immediate["payment_mandate_chain_id"],
-          open_checkout_hash=open_m["open_checkout_hash"],
-          checkout_jwt_hash=checkout_jwt_hash,
-          payment_nonce=immediate["payment_nonce"],
-          presence_mode="hp",
-      ),
+      cp_server.issue_payment_credential(**cred_kwargs),
   )
 
   done = _step(

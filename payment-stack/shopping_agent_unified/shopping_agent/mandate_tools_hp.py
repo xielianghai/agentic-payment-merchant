@@ -37,7 +37,10 @@ _build_open_payment_mandate = _mt_v2._build_open_payment_mandate
 
 from shopping_agent.keys_hp import get_or_create_user_signing_key
 from role_logging import log_op, log_op_result, setup_role_logger
-from trusted_surface_gate import check_assemble_allowed  # noqa: E402
+from trusted_surface_gate import (
+    approval_vi_l2_credential_id,
+    check_assemble_allowed,
+)  # noqa: E402
 
 _logger = setup_role_logger("mandate_tools_hp")
 
@@ -302,6 +305,43 @@ def assemble_and_sign_immediate_mandates_tool(
         "presence_mode": "hp",
         "payment_method": payment_method,
     }
+
+    if payment_method == "card":
+      session_id = str(
+          tool_context.state.get("app:session_id")
+          or tool_context.state.get("session_id")
+          or ""
+      )
+      vi_l2_id = approval_vi_l2_credential_id(session_id or None)
+      try:
+        from vi_unified.credentials import prepare_card_vi_l3
+
+        vi_l3 = prepare_card_vi_l3(
+            session_id=session_id,
+            vi_l2_credential_id=vi_l2_id or "",
+            payment_method=payment_method,
+            amount_cents=amount_cents,
+            currency=DEFAULT_CURRENCY,
+            open_checkout_hash=open_checkout_hash,
+            checkout_jwt_hash=checkout_jwt_hash,
+            payment_mandate_chain_id=pay_id,
+            payment_nonce=payment_nonce,
+            merchant_id=str(getattr(payee, "id", "") or ""),
+            presence_mode="hp",
+        )
+        if vi_l3.get("error"):
+          return vi_l3
+        if vi_l3.get("vi_l3_credential_id"):
+          result["vi_l2_credential_id"] = vi_l3.get("vi_l2_credential_id")
+          result["vi_l3_credential_id"] = vi_l3.get("vi_l3_credential_id")
+          tool_context.state["vi:l2_credential_id"] = result["vi_l2_credential_id"]
+          tool_context.state["vi:l3_credential_id"] = result["vi_l3_credential_id"]
+      except Exception as exc:
+        return {
+            "error": "vi_l3_failed",
+            "message": f"Could not issue VI L3 action credential: {exc}",
+        }
+
     log_op_result(
         _logger, "mandate-hp", "assemble_and_sign_immediate_mandates_tool", result
     )

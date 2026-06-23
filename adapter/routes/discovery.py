@@ -43,11 +43,32 @@ _PROFILE_TEMPLATE = {
                 "extends": "dev.ucp.shopping.checkout",
             }
         ],
+        "dev.ucp.shopping.vi_proof": [
+            {
+                "version": "2026-01-23",
+                "schema": "https://verifiableintent.dev/schemas/vi_proof.json",
+                "extends": "dev.ucp.shopping.ap2_mandate",
+                "config": {
+                    "network": "mastercard_mock",
+                    "payment_rail": "card",
+                    "proof_layers": ["vi_l2_intent", "vi_l3_action"],
+                },
+            }
+        ],
     },
     "payment_handlers": {
         "dev.mock.payment_handler": [
-            {"id": "mock_payment_handler", "name": "mock_payment_handler", "version": "2026-01-23", "config": {}}
-        ]
+            {
+                "id": "mock_payment_handler",
+                "name": "mock_payment_handler",
+                "version": "2026-01-23",
+                "config": {
+                    "vi_proof_supported": True,
+                    "vi_network": "mastercard_mock",
+                    "payment_rails": ["card"],
+                },
+            }
+        ],
     },
 }
 
@@ -77,7 +98,7 @@ async def agent_card(request: Request) -> dict[str, Any]:
                 "id": "flight_commerce",
                 "name": "Flight Commerce",
                 "description": "Search and purchase flights via UCP + AP2",
-                "tags": ["ucp", "ap2", "flight"],
+                "tags": ["ucp", "ap2", "vi", "flight"],
             }
         ],
     }

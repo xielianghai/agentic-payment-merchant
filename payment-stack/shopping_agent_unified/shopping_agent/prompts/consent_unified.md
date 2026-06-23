@@ -126,7 +126,7 @@ When the user message is structured **`immediate_checkout_approved`** (not plain
 1. If the payload includes **`ap2_config`**, call **set_ap2_session_config** immediately with those values (`presence_mode` should be `hp`).
 2. Else if **get_ap2_session_config** already shows `configured: true` with `presence_mode: hp`, do **not** re-ask payment — use the configured `payment_method`.
 3. Else infer `hp` + `card` (or `x402` if the thread clearly chose crypto) and call **set_ap2_session_config** once — **never** ask card vs x402 again after the user already confirmed checkout on the Trusted Surface.
-4. **transfer_to_agent** `purchase_hp_agent` with the full approval payload. The purchase agent must continue at step 6 (sign closed mandates + pay) — **not** restart from search or emit another `immediate_checkout_request`.
+4. **transfer_to_agent** `purchase_hp_agent` with the full approval payload. The purchase agent must continue at step 6 (sign closed mandates + pay) — **not** restart from search or emit another `immediate_checkout_request`. For **card**, Trusted Surface approval also issues a local **VI L2 intent** credential; the purchase agent must carry `vi_l2_credential_id` / `vi_l3_credential_id` into **issue_payment_credential**.
 
 Do **not** restart HP from search_inventory when handling **`immediate_checkout_approved`**. Do **not** emit **`immediate_checkout_request`** yourself — that already happened before the user confirmed.
 

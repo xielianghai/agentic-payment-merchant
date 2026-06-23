@@ -141,6 +141,12 @@ async def resolve_active_merchant_id(merchant_id: str | None = None) -> str:
     if not merchants:
         raise MerchantUnavailableError(DEFAULT_REGISTRY_MERCHANT_ID)
 
+    for merchant in merchants:
+        mid = str(merchant.get("merchant_id") or "")
+        if mid and _merchant_has_catalog_capability(merchant):
+            await assert_merchant_active(mid)
+            return mid
+
     first_id = str(merchants[0].get("merchant_id") or DEFAULT_REGISTRY_MERCHANT_ID)
     await assert_merchant_active(first_id)
     return first_id

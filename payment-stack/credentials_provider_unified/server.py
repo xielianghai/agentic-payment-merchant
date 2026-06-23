@@ -114,6 +114,116 @@ def _load_token_store() -> dict[str, Any]:
     return {}
 
 
+def _save_token_store(store: dict[str, Any]) -> None:
+  _TOKEN_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
+  with open(_TOKEN_STORE_PATH, "w") as f:
+    json.dump(store, f, indent=2)
+
+
+def _verify_card_vi_or_error(
+    *,
+    payment_method: str,
+    vi_l2_credential_id: str = "",
+    vi_l3_credential_id: str = "",
+    amount_cents: int = 0,
+    currency: str = "USD",
+    open_checkout_hash: str,
+    checkout_jwt_hash: str,
+    payment_mandate_chain_id: str,
+    payment_nonce: str,
+) -> dict[str, Any] | None:
+  from vi_unified.credentials import verify_vi_chain_for_payment
+
+  return verify_vi_chain_for_payment(
+      vi_l2_credential_id=vi_l2_credential_id,
+      vi_l3_credential_id=vi_l3_credential_id,
+      payment_method=payment_method,
+      amount_cents=amount_cents,
+      currency=currency,
+      open_checkout_hash=open_checkout_hash,
+      checkout_jwt_hash=checkout_jwt_hash,
+      payment_mandate_chain_id=payment_mandate_chain_id,
+      payment_nonce=payment_nonce,
+  )
+
+
+def _resolve_card_vi_for_issue(
+    *,
+    payment_method: str,
+    vi_l2_credential_id: str,
+    vi_l3_credential_id: str,
+    amount_cents: int,
+    currency: str,
+    open_checkout_hash: str,
+    checkout_jwt_hash: str,
+    payment_mandate_chain_id: str,
+    payment_nonce: str,
+    presence_mode: str,
+) -> tuple[str, str, dict[str, Any] | None]:
+  """Auto-resolve real VI credentials when agent omits or passes placeholder ids."""
+  from vi_unified.credentials import is_vi_enabled, resolve_card_vi_for_issue
+
+  if payment_method != "card" or not is_vi_enabled():
+    return vi_l2_credential_id, vi_l3_credential_id, None
+
+  resolved = resolve_card_vi_for_issue(
+      vi_l2_credential_id=vi_l2_credential_id,
+      vi_l3_credential_id=vi_l3_credential_id,
+      payment_method=payment_method,
+      amount_cents=amount_cents,
+      currency=currency,
+      open_checkout_hash=open_checkout_hash,
+      checkout_jwt_hash=checkout_jwt_hash,
+      payment_mandate_chain_id=payment_mandate_chain_id,
+      payment_nonce=payment_nonce,
+      presence_mode=presence_mode,
+  )
+  if resolved.get("error"):
+    return vi_l2_credential_id, vi_l3_credential_id, resolved
+  return (
+      str(resolved.get("vi_l2_credential_id", "")),
+      str(resolved.get("vi_l3_credential_id", "")),
+      None,
+  )
+
+
+def _attach_vi_metadata_to_token(
+    payment_token: str,
+    *,
+    vi_l2_credential_id: str = "",
+    vi_l3_credential_id: str = "",
+    amount_cents: int = 0,
+    currency: str = "USD",
+    open_checkout_hash: str = "",
+    checkout_jwt_hash: str = "",
+    payment_mandate_chain_id: str = "",
+    payment_nonce: str = "",
+) -> None:
+  if not payment_token:
+    return
+  store = _load_token_store()
+  entry = store.get(payment_token)
+  if not isinstance(entry, dict):
+    return
+  entry.update(
+      {
+          "vi_l2_credential_id": vi_l2_credential_id,
+          "vi_l3_credential_id": vi_l3_credential_id,
+          "amount_cents": int(amount_cents or 0),
+          "currency": str(currency or "USD"),
+          "open_checkout_hash": open_checkout_hash,
+          "checkout_jwt_hash": checkout_jwt_hash,
+          "payment_mandate_chain_id": payment_mandate_chain_id,
+          "payment_nonce": payment_nonce,
+      }
+  )
+  store[payment_token] = entry
+  reference = entry.get("reference")
+  if isinstance(reference, str) and reference in store:
+    store[reference] = entry
+  _save_token_store(store)
+
+
 @mcp.tool()
 def issue_payment_credential(
     payment_method: str,
@@ -122,12 +232,17 @@ def issue_payment_credential(
     checkout_jwt_hash: str,
     payment_nonce: str,
     presence_mode: str = "hnp",
+    vi_l2_credential_id: str = "",
+    vi_l3_credential_id: str = "",
+    amount_cents: int = 0,
+    currency: str = "USD",
 ) -> Mapping[str, Any]:
   """Issue a scoped payment token for card or x402."""
   _logger.info(
-      "issue_payment_credential unified: method=%s presence=%s",
+      "issue_payment_credential unified: method=%s presence=%s vi=%s",
       payment_method,
       presence_mode,
+      bool(vi_l3_credential_id),
   )
   try:
     method = _normalize_payment_method(payment_method)
@@ -141,15 +256,61 @@ def issue_payment_credential(
         open_checkout_hash,
         checkout_jwt_hash,
         payment_nonce,
+        vi_l2_credential_id=vi_l2_credential_id,
+        vi_l3_credential_id=vi_l3_credential_id,
+        amount_cents=amount_cents,
+        currency=currency,
     )
 
   if method == "card":
-    return card_cp.issue_payment_credential(
+    vi_l2_credential_id, vi_l3_credential_id, vi_resolve_err = _resolve_card_vi_for_issue(
+        payment_method=method,
+        vi_l2_credential_id=vi_l2_credential_id,
+        vi_l3_credential_id=vi_l3_credential_id,
+        amount_cents=amount_cents,
+        currency=currency,
+        open_checkout_hash=open_checkout_hash,
+        checkout_jwt_hash=checkout_jwt_hash,
+        payment_mandate_chain_id=payment_mandate_chain_id,
+        payment_nonce=payment_nonce,
+        presence_mode=presence_mode,
+    )
+    if vi_resolve_err:
+      return vi_resolve_err
+    vi_err = _verify_card_vi_or_error(
+        payment_method=method,
+        vi_l2_credential_id=vi_l2_credential_id,
+        vi_l3_credential_id=vi_l3_credential_id,
+        amount_cents=amount_cents,
+        currency=currency,
+        open_checkout_hash=open_checkout_hash,
+        checkout_jwt_hash=checkout_jwt_hash,
+        payment_mandate_chain_id=payment_mandate_chain_id,
+        payment_nonce=payment_nonce,
+    )
+    if vi_err:
+      return vi_err
+    result = card_cp.issue_payment_credential(
         payment_mandate_chain_id,
         open_checkout_hash,
         checkout_jwt_hash,
         payment_nonce,
     )
+    if isinstance(result, dict) and result.get("payment_token"):
+      _attach_vi_metadata_to_token(
+          str(result["payment_token"]),
+          vi_l2_credential_id=vi_l2_credential_id,
+          vi_l3_credential_id=vi_l3_credential_id,
+          amount_cents=amount_cents,
+          currency=currency,
+          open_checkout_hash=open_checkout_hash,
+          checkout_jwt_hash=checkout_jwt_hash,
+          payment_mandate_chain_id=payment_mandate_chain_id,
+          payment_nonce=payment_nonce,
+      )
+      result["vi_l2_credential_id"] = vi_l2_credential_id
+      result["vi_l3_credential_id"] = vi_l3_credential_id
+    return result
   return x402_cp.issue_payment_credential(
       payment_mandate_chain_id,
       open_checkout_hash,
@@ -207,6 +368,11 @@ def _issue_payment_credential_hp(
     open_checkout_hash: str,
     checkout_jwt_hash: str,
     payment_nonce: str,
+    *,
+    vi_l2_credential_id: str = "",
+    vi_l3_credential_id: str = "",
+    amount_cents: int = 0,
+    currency: str = "USD",
 ) -> Mapping[str, Any]:
   """HP: verify chain with user key on closed hop, then issue token."""
   path = TEMP_DB / f"{payment_mandate_chain_id}.sdjwt"
@@ -235,6 +401,37 @@ def _issue_payment_credential_hp(
   if violations:
     return {"error": "verification_failed", "message": "; ".join(violations)}
 
+  if payment_method == "card":
+    resolved_amount = amount_cents or int(chain.closed_mandate.payment_amount.amount)
+    resolved_currency = currency or str(chain.closed_mandate.payment_amount.currency)
+    vi_l2_credential_id, vi_l3_credential_id, vi_resolve_err = _resolve_card_vi_for_issue(
+        payment_method=payment_method,
+        vi_l2_credential_id=vi_l2_credential_id,
+        vi_l3_credential_id=vi_l3_credential_id,
+        amount_cents=resolved_amount,
+        currency=resolved_currency,
+        open_checkout_hash=open_checkout_hash,
+        checkout_jwt_hash=checkout_jwt_hash,
+        payment_mandate_chain_id=payment_mandate_chain_id,
+        payment_nonce=payment_nonce,
+        presence_mode="hp",
+    )
+    if vi_resolve_err:
+      return vi_resolve_err
+    vi_err = _verify_card_vi_or_error(
+        payment_method=payment_method,
+        vi_l2_credential_id=vi_l2_credential_id,
+        vi_l3_credential_id=vi_l3_credential_id,
+        amount_cents=resolved_amount,
+        currency=resolved_currency,
+        open_checkout_hash=open_checkout_hash,
+        checkout_jwt_hash=checkout_jwt_hash,
+        payment_mandate_chain_id=payment_mandate_chain_id,
+        payment_nonce=payment_nonce,
+    )
+    if vi_err:
+      return vi_err
+
   if payment_method == "x402":
     return _issue_x402_credential_after_verify(
         mandate_chain,
@@ -261,15 +458,25 @@ def _issue_payment_credential_hp(
       "presence_mode": "hp",
       "used": False,
       "expires_at": expires_at,
+      "vi_l2_credential_id": vi_l2_credential_id,
+      "vi_l3_credential_id": vi_l3_credential_id,
+      "amount_cents": amount_cents or int(chain.closed_mandate.payment_amount.amount),
+      "currency": currency or str(chain.closed_mandate.payment_amount.currency),
+      "open_checkout_hash": open_checkout_hash,
+      "checkout_jwt_hash": checkout_jwt_hash,
+      "payment_mandate_chain_id": payment_mandate_chain_id,
   }
   store = _load_token_store()
   store.update(
       dict.fromkeys([token, reference], token_data)
   )
-  _TOKEN_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-  with open(_TOKEN_STORE_PATH, "w") as f:
-    json.dump(store, f, indent=2)
-  return {"payment_token": token, "expires_at": expires_at}
+  _save_token_store(store)
+  return {
+      "payment_token": token,
+      "expires_at": expires_at,
+      "vi_l2_credential_id": vi_l2_credential_id,
+      "vi_l3_credential_id": vi_l3_credential_id,
+  }
 
 
 @mcp.tool()
