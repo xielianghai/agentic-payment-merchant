@@ -100,6 +100,24 @@ demo_all_ports() {
   echo "$WEB_CLIENT_PORT"
 }
 
+demo_build_uv_run_arr() {
+  local ap2_env="${REPO_ROOT}/.env"
+  local merchant_env="${DEMO_REPO_ROOT}/.env"
+  local v2_env="$SAMPLES_ROOT/src/roles/shopping_agent_v2/.env"
+
+  UV_RUN_ARR=(uv run --no-sync --package ap2-samples --project "$REPO_ROOT")
+  if [ -f "$ap2_env" ]; then
+    UV_RUN_ARR+=(--env-file "$ap2_env")
+  fi
+  if [ -f "$v2_env" ]; then
+    UV_RUN_ARR+=(--env-file "$v2_env")
+  fi
+  # Merchant repo .env wins over AP2/.env (e.g. AP2_DISABLE_VI).
+  if [ -f "$merchant_env" ]; then
+    UV_RUN_ARR+=(--env-file "$merchant_env")
+  fi
+}
+
 demo_require_llm_keys() {
   LLM_PROVIDER=$(printf "%s" "${LLM_PROVIDER:-google}" | tr '[:upper:]' '[:lower:]')
   USE_VERTEXAI=$(printf "%s" "${GOOGLE_GENAI_USE_VERTEXAI:-}" | tr '[:upper:]' '[:lower:]')
@@ -139,15 +157,7 @@ demo_lib_init() {
   demo_require_llm_keys
   demo_ensure_uv_deps
 
-  ROOT_ENV="${REPO_ROOT}/.env"
-  V2_ENV="$SAMPLES_ROOT/src/roles/shopping_agent_v2/.env"
-  UV_RUN_ARR=(uv run --no-sync --package ap2-samples --project "$REPO_ROOT")
-  if [ -f "$ROOT_ENV" ]; then
-    UV_RUN_ARR+=(--env-file "$ROOT_ENV")
-  fi
-  if [ -f "$V2_ENV" ]; then
-    UV_RUN_ARR+=(--env-file "$V2_ENV")
-  fi
+  demo_build_uv_run_arr
 
   export TEMP_DB_DIR="$TEMP_DB"
   export LOGS_DIR="$LOG_DIR"

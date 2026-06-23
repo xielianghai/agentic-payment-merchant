@@ -31,10 +31,7 @@ if [ -f "$MERCHANT_HOME/.env" ]; then
   set +a
 fi
 
-UV_RUN_ARR=(uv run --no-sync --package ap2-samples --project "$REPO_ROOT")
-if [ -f "$REPO_ROOT/.env" ]; then
-  UV_RUN_ARR+=(--env-file "$REPO_ROOT/.env")
-fi
+demo_build_uv_run_arr
 
 OPENCLAW_RUN_DIR="$PAYMENT_STACK/.run-qclaw-heg"
 OPENCLAW_PID_FILE="$OPENCLAW_RUN_DIR/pids"
