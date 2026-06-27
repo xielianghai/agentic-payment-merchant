@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  createDisputeExport,
+  downloadDisputeExport,
   getMonitoring,
   getReconciliationRuns,
   runReconciliation,
@@ -35,8 +35,9 @@ export function ReconciliationPage({ merchantId }: Props) {
     },
   })
   const exportMutation = useMutation({
-    mutationFn: () => createDisputeExport(merchantId),
+    mutationFn: () => downloadDisputeExport(merchantId, 'admin'),
     onSuccess: () => message.success(t('reconciliation.exportSuccess')),
+    onError: (err: Error) => message.error(err.message),
   })
 
   const stats = monitoringQuery.data?.transaction_stats

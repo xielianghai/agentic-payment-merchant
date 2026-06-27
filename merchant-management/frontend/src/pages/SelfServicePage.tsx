@@ -2,7 +2,7 @@ import { App as AntdApp, Button, Card, Col, Row, Space, Statistic } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
-  createDisputeExport,
+  downloadDisputeExport,
   getCapabilities,
   getTransactionStats,
   getTrustKeys,
@@ -31,8 +31,9 @@ export function SelfServicePage({ merchantId, onNavigate }: Props) {
     },
   })
   const exportMutation = useMutation({
-    mutationFn: () => createDisputeExport(merchantId, 'merchant'),
+    mutationFn: () => downloadDisputeExport(merchantId, 'merchant'),
     onSuccess: () => { message.success(t('selfService.exportCreated')) },
+    onError: (err: Error) => message.error(err.message),
   })
 
   const activeKeys = keysQuery.data?.filter((k) => k.status === 'ACTIVE').length ?? 0

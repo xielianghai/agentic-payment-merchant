@@ -249,5 +249,26 @@ export const runReconciliation = (id: string) =>
 export const getExports = (id: string) => unwrap<ExportJob[]>(api.get(`/admin/merchants/${id}/exports`))
 export const createDisputeExport = (id: string, requestedBy = 'merchant') =>
   unwrap<ExportJob>(api.post(`/admin/merchants/${id}/exports/dispute`, { requested_by: requestedBy }))
+
+export async function downloadDisputeExport(id: string, requestedBy = 'admin'): Promise<void> {
+  const response = await api.get(`/admin/merchants/${id}/exports/dispute/download`, {
+    params: { requested_by: requestedBy },
+    responseType: 'blob',
+  })
+  const blob = response.data as Blob
+  const disposition = response.headers['content-disposition'] as string | undefined
+  let filename = `dispute_${id}.xlsx`
+  const match = disposition?.match(/filename="([^"]+)"/)
+  if (match?.[1]) filename = match[1]
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 export const getOperationLogs = (params?: { merchant_id?: string; action?: string; limit?: number }) =>
   unwrap<OperationLog[]>(api.get('/admin/operation-logs', { params }))

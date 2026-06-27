@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -406,6 +407,20 @@ async def create_dispute_export(
             session, merchant_id, body.requested_by, body.filters
         ),
     }
+
+
+@router.get("/merchants/{merchant_id}/exports/dispute/download")
+async def download_dispute_export(
+    merchant_id: str,
+    requested_by: str = Query("admin"),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    content, filename = await export_svc.download_dispute_excel(session, merchant_id, requested_by)
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/operation-logs")
